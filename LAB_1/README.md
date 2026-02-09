@@ -1,0 +1,111 @@
+# ЛАБОРАТОРНАЯ №1. Подготовка рабочего окружения
+
+Требования:
+
+1) Подготовить ПК с хостовой OS Linux, использовать дистрибутив Debian stable ( https://www.debian.org/distrib/netinst ).
+   Под диск **>=150gb**. Выбрать установку
+   * **standart system utilities**
+
+   Выбрать графическое окружение по желанию.
+   Чтобы сэкономить ресурсы можно выбрать самое легкое графическое окружение - **Xfce**.
+   Остальные пункты убрать.
+
+   P.S Если у вас уже есть устройство с Linux/Mac, то можно использовать его с вашей системой виртуализации ( VirtualBox использовать не рекомендую ).
+   Ниже команды и шаги которые конкретно под Debian и KVM+QEMU+Libvirt.
+
+2) Установить пакеты на хост, настроить и запустить libvirt, проверить что все работает.
+```
+$ su -  # сменить пользователя ( root )
+
+# apt install -y qemu-system-x86 \
+                 libvirt-daemon-system \
+                 libvirt-clients \
+                 bridge-utils \
+                 virtinst \
+                 virt-manager \
+                 xorriso \
+                 git \
+                 curl \
+                 unzip \
+                 wget \
+                 ssh  # установка пакетов
+
+# systemctl enable --now libvirtd.service  # запуск демона libvirt
+
+# virt-host-validate qemu # проверка работы. Вывод команды должен быть примерно такой как ниже, значит ок
+  QEMU: Checking for hardware virtualization                                 : PASS (SVM)
+  QEMU: Checking if device '/dev/kvm' exists                                 : PASS
+  QEMU: Checking if device '/dev/kvm' is accessible                          : PASS
+  QEMU: Checking if device '/dev/vhost-net' exists                           : PASS
+  QEMU: Checking if device '/dev/net/tun' exists                             : PASS
+  QEMU: Checking for cgroup 'cpu' controller support                         : PASS
+  QEMU: Checking for cgroup 'cpuacct' controller support                     : PASS
+  QEMU: Checking for cgroup 'cpuset' controller support                      : PASS
+  QEMU: Checking for cgroup 'memory' controller support                      : PASS
+  QEMU: Checking for cgroup 'devices' controller support                     : WARN (Enable 'devices' in kernel Kconfig file or mount/enable cgroup controller in your system)
+  QEMU: Checking for cgroup 'blkio' controller support                       : PASS
+  QEMU: Checking for device assignment IOMMU support                         : PASS (IVRS)
+  QEMU: Checking if IOMMU is enabled by kernel                               : PASS
+  QEMU: Checking for secure guest support                                    : WARN (None of SEV, SEV-ES, SEV-SNP, TDX available)
+
+# usermod -aG libvirt $(id -un 1000) # настроить возможность взаимодействия с URI qemu:///system от пользователя, обычно id=1000 ваш пользователь, но можно указать явно имя пользователя вместо $(id -un 1000)
+
+# mkdir -p /var/lib/libvirt/isos/ && curl -LO https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2 --output-dir /var/lib/libvirt/isos/ # загрузить cloudinit образ на хост
+
+# exit
+
+$ virsh -c qemu:///system list --all # открыть новый терминал и проверить что команда выполняется от пользователя без ошибок
+```
+
+3) Выполнить команду для генерации пары ключей
+```
+$ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+```
+
+4) Склонировать репозиторий с заданиями, перейти в директорию с лабораторной.
+   Запустить сценарий для установки terraform и libvirt provider
+```
+$ mkdir ~/work
+$ git clone --depth=1 https://github.com/itomilin/devops_course.git ~/work/devops_course
+$ cd ~/work/devops_course/LAB_1
+$ ./prepare.sh
+```
+
+5) Проверить работу terraform и развернуть виртуальные машины.
+   В файле terraform.tfvars нужно подставить хеш пароля ( команда генерации указана ),
+   опционально можете изменить настройки виртуальных машин и другие переменные.
+```
+$ cd ~/work/devops_course/LAB_1/src
+$ terrafom plan
+$ terraform apply -auto-approve
+
+## команду ниже использовать для очистки всего и только если проблемы на этапе terraform apply. Т.к удаляет все ресурсы, включая !!файловую систему ВМ!!
+$ terraform destroy
+```
+
+6) Создание виртуальных машин займет некоторое время, зависит от системы.
+   Для просмотра/управления/конфигурации ВМ машин есть утилиты:
+   * **virt-manager** ( UI )
+   * **virsh** ( CLI )
+
+   После того как машины будут созданы, можно подключиться к ним по ssh.
+```
+$ virt-manager
+
+# ниже пару команд, которые показывают примеры взаимодействия с CLI утилитой
+# virsh -c qemu:///system <cmd> <opts>
+$ virsh -c qemu:///system list --all
+$ virsh -c qemu:///system net-list --all
+$ virsh -c qemu:///system pool-list --all
+
+# IP adresses по умолчанию
+$ ssh debian@192.168.99.100 # master0
+$ ssh debian@192.168.99.101 # worker0
+$ ssh debian@192.168.99.102 # worker1
+```
+
+## При показе выполненного задания
+   * Запустить все ВМ
+   * Подключиться к ним по ssh
+   * Выполнить ping между машинами в локальной сети
+   * Выполнить ping на любой адрес во внешней сети
