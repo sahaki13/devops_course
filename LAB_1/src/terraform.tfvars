@@ -7,8 +7,8 @@ vms_settings = {
   "master_0" = {
     hostname  = "master-0"
     cidr      = "192.168.99.100/24"
-    cpu       = 3                       # cpu count
-    mem       = 4 * 1024                # Megabytes
+    cpu       = 4                       # cpu count
+    mem       = 5 * 1024                # Megabytes
     disk_size = 40 * 1024 * 1024 * 1024 # Bytes
   },
   "worker_0" = {

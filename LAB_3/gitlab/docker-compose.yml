@@ -1,0 +1,103 @@
+services:
+  gitlab:
+    # image: gitlab/gitlab-ce:15.11.1-ce.0
+    # image: gitlab/gitlab-ce:17.11.7-ce.0
+    image: gitlab/gitlab-ce:16.11.10-ce.0
+    # image: gitlab/gitlab-ce:18.8.3-ce.0 # a lot of resources consumption
+    container_name: gitlab
+    restart: always
+    privileged: true
+    environment:
+      # gitlab_shell_ssh_port - interaction with ssh
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url          'http://gitlab:80'
+        registry_external_url 'http://gitlab:5050'
+
+        registry_nginx['listen_port'] = 5050
+        registry_nginx['listen_https'] = false
+
+        letsencrypt['enable'] = false
+
+        logging['logrotate_size'] = "20M"
+        logging['logrotate_rotate'] = 5
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+
+      TZ: "Europe/Moscow"
+      # login by default: root
+      GITLAB_ROOT_PASSWORD: ${GITLAB_ROOT_PASSWORD}
+    volumes:
+      - ./data/config:/etc/gitlab
+      - ./data/data:/var/opt/gitlab
+      - ./data/logs:/var/log/gitlab
+      - ./cfg/gitlab.rb:/etc/gitlab/gitlab.rb:ro
+    ports:
+      - "80:80"
+      - "5050:5050"
+      - "2222:22"
+    networks:
+      - gitlab
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://0.0.0.0:80/users/sign_in" ]
+      interval: 25s
+      timeout: 10s
+      retries: 30
+
+  runner:
+    image: gitlab/gitlab-runner:v18.8.0
+    container_name: runner_build_srv_1
+    restart: always
+    # user: gitlab-runner
+    environment:
+      TZ: "Europe/Moscow"
+      # set to false after success register
+      IS_REGISTER_RUNNER: false
+      IS_DEBUG: false
+      # set your token here
+      PERSONAL_ACCESS_TOKEN: ${PERSONAL_ACCESS_TOKEN}
+      DIND_IMAGE: ${DIND_IMAGE}
+      CURRENT_DIR: ${CURRENT_DIR}
+    volumes:
+      - ./runner_cfg/:/etc/gitlab-runner/
+      - ./scripts/register_runner.sh:/opt/register_runner.sh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: |
+      /bin/bash -ec /opt/register_runner.sh
+    networks:
+      - gitlab
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
+
+networks:
+  gitlab:
+    driver: bridge
+    ipam:
+      config:
+      # if subnet: 192.168.100.0/24, by default without mask
+      # network    100.0
+      # gw         100.1
+      # services:  100.2 ... 100.254
+      # broadcast: 100.255
+        - subnet: 192.168.100.0/24
+          # gateway: 192.168.100.1
+          # ip_range: 192.168.100.144/28

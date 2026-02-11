@@ -1,0 +1,9 @@
+# ignore all
+*
+
+# include files
+!Dockerfile*
+!src/
+!build.sh
+!build/
+!version.json
