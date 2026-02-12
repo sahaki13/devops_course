@@ -22,6 +22,9 @@
 
    **!! Ниже команды и шаги которые подходят под рекомендуемый вариант, а именно Debian и KVM+QEMU+Libvirt. !!**
 
+## Topology
+![topology](./docs/topology.png "topology")
+
 2) Установить пакеты на хост, настроить и запустить libvirt, проверить что все работает.
 ```
 $ su -  # сменить пользователя ( root )
@@ -33,6 +36,8 @@ $ su -  # сменить пользователя ( root )
                  virtinst \
                  virt-manager \
                  xorriso \
+                 whois \
+                 htop \
                  git \
                  curl \
                  unzip \
