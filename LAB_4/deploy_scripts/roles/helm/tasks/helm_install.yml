@@ -1,0 +1,37 @@
+---
+- name: Installing helm
+  become: true
+  when: inventory_hostname is search("master")
+  block:
+    - name: Obtain helm key
+      ansible.builtin.get_url:
+        url: "{{ helm_repo }}/gpgkey"
+        dest: /tmp/helm_gpgkey
+        mode: '0640'
+
+    - name: Convert ASCII key to binary GPG format
+      ansible.builtin.command:
+        cmd: "gpg --dearmor -o {{ helm_keyrings_path }} /tmp/helm_gpgkey"
+        creates: "{{ helm_keyrings_path }}"
+
+    - name: Helm apt repository.
+      ansible.builtin.apt_repository:
+        state: present
+        repo: "deb [signed-by={{ helm_keyrings_path }}] {{ helm_repo }}/any/ any main"
+        filename: helm
+
+    - name: Install helm
+      ansible.builtin.apt:
+        state: present
+        name: "{{ helm_packages }}"
+        update_cache: true
+
+    - name: Create a bash_completion.d dir if it does not exist
+      ansible.builtin.file:
+        path: /etc/bash_completion.d
+        state: directory
+        mode: '0755'
+
+    - name: Add completion for helm
+      changed_when: false
+      ansible.builtin.shell: "helm completion bash > /etc/bash_completion.d/helm"

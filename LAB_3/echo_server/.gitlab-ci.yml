@@ -65,19 +65,32 @@ dockerize:
       - version.json
   variables:
     DOCKER_BUILDKIT: 1
+    EXTERNAL_REGISTRY_ADDRESS: 192.168.99.100:5050 # чтобы не было проблем с DNS
   stage: dockerize
   script: |
     ls -la
+    # env
 
     export SERVICE_VERSION=$(grep 'version' ./version.json | cut -d '"' -f4 | tr '\n' '\0')
-    echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+    # echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+    echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $EXTERNAL_REGISTRY_ADDRESS --password-stdin
+
     echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
     echo "SERVICE_VERSION=$SERVICE_VERSION"
+
     # sleep 99999 # dbg
 
-    echo "ALTERNATIVE WAY. COPY ARTIFACT TO DOCKER"
-    docker build --provenance=false -f Dockerfile_simple -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION .
-    docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION
+    echo "COPY ARTIFACT TO DOCKER"
+    docker build --provenance=false \
+                 -f Dockerfile_simple \
+                 -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest \
+                 -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION \
+                 -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION \
+                 .
+
+    # docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION
+    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION
+    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest
 
     # echo "BUILD AGAIN"
     # docker build -f Dockerfile_multistage -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION-v2 .

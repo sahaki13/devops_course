@@ -1,0 +1,5 @@
+helm_keyrings_path: /etc/apt/keyrings/helm.gpg
+helm_repo: https://packages.buildkite.com/helm-linux/helm-debian
+
+helm_packages:
+  - helm

@@ -1,0 +1,2 @@
+# Общие переменные для группы хостов workers
+# ansible_user: worker

@@ -1,0 +1,30 @@
+---
+- name: Kubeadm join
+  become: true
+  block:
+    - name: Kubeadm join via kubeadm join command
+      changed_when: false
+      when: inventory_hostname != "master_0"
+      ansible.builtin.command: >
+        kubeadm join
+        {% if k8s_ha_mode %}
+        {{ k8s_control_plan_vip }}:6443
+        {% else %}
+        {{ k8s_join_address }}
+        {% endif %}
+        --cri-socket={{ k8s_crio_socket }}
+        --token={{ k8s_join_token }}
+        --discovery-token-ca-cert-hash={{ k8s_join_discovery_token }}
+        {% if inventory_hostname in groups['masters'] %}
+        --control-plane
+        --certificate-key={{ k8s_control_plane_key }}
+        {% endif %}
+      register: kubeadm_join_output
+
+    - name: Create kubeAPI config
+      when: inventory_hostname in groups['masters']
+      ansible.builtin.import_tasks: ./config.yml
+
+    - name: Join debug info
+      ansible.builtin.debug:
+        msg: "{{ kubeadm_join_output }}"

@@ -1,0 +1,53 @@
+---
+- name: Installing kubeadm, kubelet and kubectl
+  become: true
+  block:
+    - name: Obtain k8s key.
+      ansible.builtin.get_url:
+        url: "{{ k8s_repo_mirror }}/Release.key"
+        dest: /tmp/kubernetes.asc
+        mode: '0640'
+
+    - name: Convert ASCII key to binary GPG format
+      ansible.builtin.command:
+        cmd: gpg --dearmor -o /etc/apt/keyrings/kubernetes.gpg /tmp/kubernetes.asc
+        creates: /etc/apt/keyrings/kubernetes.gpg
+
+    - name: K8s apt repository.
+      ansible.builtin.apt_repository:
+        state: present
+        repo: >
+          deb [signed-by=/etc/apt/keyrings/kubernetes.gpg] {{ k8s_repo_mirror }} /
+        filename: kubernetes
+
+    - name: Install k8s packages
+      ansible.builtin.apt:
+        state: present
+        name: "{{ k8s_kube_packages }}"
+        update_cache: true
+
+    - name: Kube shell commplition and alias
+      when: inventory_hostname is search("master")
+      block:
+        - name: Create a bash_completion.d dir if it does not exist
+          ansible.builtin.file:
+            path: /etc/bash_completion.d
+            state: directory
+            mode: '0755'
+
+        - name: Add completion for kube
+          changed_when: false
+          ansible.builtin.shell: "{{ item }} completion bash > /etc/bash_completion.d/{{ item }}"
+          with_items:
+            - kubectl
+            - kubeadm
+
+    - name: Check crictl
+      ansible.builtin.command: >-
+        crictl --runtime-endpoint {{ k8s_crio_socket }} info
+      changed_when: false
+      register: k8s_crictl_info
+
+    - name: Show crictl status
+      ansible.builtin.debug:
+        msg: "{{ k8s_crictl_info.stdout.split('\n') }}"

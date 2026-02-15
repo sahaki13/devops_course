@@ -1,0 +1,49 @@
+k8s_crio_socket: "unix:///var/run/crio/crio.sock"
+k8s_crio_cert_dir: "/etc/containers/certs.d"
+
+k8s_pod_network: "10.244.0.0/16"
+
+k8s_kubeadm_config_file_path: /etc/kubeadm_config.yaml
+k8s_kubeadm_join_creds_file_path: /etc/kubeadm_join_creds.conf
+
+k8s_container_and_network_modules:
+  - overlay
+  - br_netfilter
+
+k8s_ipvs_modules:
+  - ip_vs
+  - ip_vs_rr
+  - ip_vs_wrr
+  - ip_vs_sh
+  # for kernel > 4.19 using nf_conntrac | if u kernel <= 4.19 then use nf_conntrack_ipv4
+  - nf_conntrack
+
+k8s_crio_packages:
+  - cri-o
+  # - cri-tools
+
+k8s_kube_packages:
+  - kubelet
+  - kubectl
+  - kubeadm # для присоединения узлов нужен на каждом хосте
+  - kubernetes-cni
+
+k8s_prerequisites_packages:
+  - ipset #  for k8s ipvs
+  - ipvsadm # for k8s ipvs
+  - netcat-traditional
+  - jq
+  - sshpass
+  - ca-certificates
+  - openssl
+  - curl
+  - gnupg2
+  - htop
+  - net-tools
+  - dnsutils
+  - rsync
+  - unzip
+  - tree
+  - python3-pip
+  - traceroute
+  - tcpdump

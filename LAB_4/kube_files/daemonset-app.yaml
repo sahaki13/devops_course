@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: echo-server
+  namespace: echo-server
+  labels:
+    app: echo-server
+spec:
+  selector:
+    matchLabels:
+      app: echo-server
+  template:
+    metadata:
+      labels:
+        app: echo-server
+    spec:
+      imagePullSecrets:
+        - name: gitlab-insecure-registry
+      containers:
+        - name: echo-server
+          image: 192.168.99.100:5050/root/echo-server:2.1.0
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: 80Mi
+              cpu: 150m
+            limits:
+              memory: 80Mi
+              cpu: 150m
+          env:
+            - name: TZ
+              value: "Europe/Moscow"
+          ports:
+            - containerPort: 3000
+              name: echo-server-p

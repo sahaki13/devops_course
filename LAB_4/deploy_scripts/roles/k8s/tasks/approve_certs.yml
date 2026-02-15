@@ -1,0 +1,26 @@
+---
+- name: K8s approve certs
+  when: inventory_hostname == "master_0"
+  block:
+    - name: Get CSR list
+      changed_when: false
+      ansible.builtin.command: >-
+        kubectl get csr
+      register: k8s_state_certs_approve
+
+    - name: DBG show CSR list
+      ansible.builtin.debug:
+        msg: "{{ k8s_state_certs_approve.stdout_lines }}"
+
+    - name: Extract pending names and approve it
+      changed_when: false
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl get csr | grep -i pending | awk '{print $1}' | xargs -r kubectl certificate approve
+      args:
+        executable: /bin/bash
+      register: k8s_state_certs_approve
+
+    - name: DBG show status
+      ansible.builtin.debug:
+        msg: "{{ k8s_state_certs_approve.stdout_lines }}"

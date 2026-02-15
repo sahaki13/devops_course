@@ -45,7 +45,7 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 4G
+          memory: 4.5G
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://0.0.0.0:80/users/sign_in" ]
       interval: 25s
@@ -86,7 +86,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 200M
+          memory: 100M
 
 networks:
   gitlab:

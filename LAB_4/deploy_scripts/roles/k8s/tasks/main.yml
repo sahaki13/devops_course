@@ -1,0 +1,69 @@
+---
+- name: Prerequisites configuration
+  ansible.builtin.import_tasks: ./prerequisites.yml
+  tags:
+    - k8s_prerequisites
+
+- name: Check ports
+  ansible.builtin.import_tasks: ./check_ports.yml
+  tags:
+    - k8s_check_required_ports
+
+- name: Install container runtime interface
+  ansible.builtin.import_tasks: ./cri.yml
+  tags:
+    - k8s_cri
+
+- name: Installing kubeadm, kubelet and kubectl
+  ansible.builtin.import_tasks: ./kube.yml
+  tags:
+    - k8s_kube
+
+- name: K8s init
+  ansible.builtin.import_tasks: ./kubeadm/init.yml
+  tags:
+    - k8s_kube_init
+
+- name: K8s join worker and control plane nodes
+  ansible.builtin.import_tasks: ./kubeadm/join.yml
+  tags:
+    - k8s_kube_join
+
+- name: K8s approve cert
+  ansible.builtin.import_tasks: ./approve_certs.yml
+  tags:
+    - k8s_approve_certs
+
+- name: K8s network plugin
+  ansible.builtin.import_tasks: ./plugins/network/flannel.yml
+  tags:
+    - k8s_add_network_plugin
+
+- name: K8s get all
+  when: inventory_hostname == "master_0"
+  tags:
+    - k8s_debug_get_all
+  run_once: true
+  block:
+    - name: Kubectl get all -A
+      changed_when: false
+      ansible.builtin.command: "kubectl get all -A -o wide --show-labels"
+      register: k8s_state_get_all_info
+
+    - name: Show dbg
+      ansible.builtin.debug:
+        msg: "{{ k8s_state_get_all_info.stdout_lines }}"
+
+###############################################################################
+
+- name: Delete k8s and crio
+  ansible.builtin.import_tasks: ./delete_crio_k8s.yml
+  tags:
+    - never
+    - k8s_cleanup_kube_and_crio
+
+- name: Reset k8s on each node
+  ansible.builtin.import_tasks: ./kubeadm/reset.yml
+  tags:
+    - never
+    - k8s_reset_kube

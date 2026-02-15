@@ -1,0 +1,5 @@
+- name: Helm
+  hosts:
+    - masters
+  roles:
+    - helm

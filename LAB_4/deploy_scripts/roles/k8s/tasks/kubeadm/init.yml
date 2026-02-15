@@ -1,0 +1,113 @@
+---
+- name: Kubeadm init
+  become: true
+  block:
+    # kubeadm init --pod-network-cidr={{ K8S_POD_NETWORK }} --cri-socket={{ K8S_CRI_SOCKET }}
+    - name: Copy the configuration
+      when: inventory_hostname == "master_0"
+      ansible.builtin.template:
+        src: kubeadm_config.j2
+        dest: "{{ k8s_kubeadm_config_file_path }}"
+        owner: root
+        group: root
+        mode: '0640'
+
+    - name: Copy KUBE-VIP to static pods dir. Autostart when kube init (only when HA mode)
+      when: inventory_hostname in groups['masters'] and k8s_ha_mode | bool
+      ansible.builtin.template:
+        src: kube-vip.j2
+        dest: /etc/kubernetes/manifests/kube-vip.yaml
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Add vip address
+      changed_when: false
+      when: inventory_hostname == "master_0" and k8s_ha_mode | bool
+      ansible.builtin.command: >-
+        ip addr
+        {% if k8s_ha_mode %}
+        add {{ k8s_control_plan_vip }}/24
+        {% else %}
+        add {{ ansible_facts['default_ipv4']['address'] }}/24
+        {% endif %}
+        dev {{ k8s_control_plan_iface }}
+
+    # - name: Copy to static pods dir. Autostart when kube init
+    #   #when: inventory_hostname in groups['masters'] and {{ k8s_ha_mode }}
+    #   when: inventory_hostname == "master_0" and k8s_ha_mode
+    #   block:
+    #     - name: Copy config
+    #       ansible.builtin.template:
+    #         src: nginx.conf.j2
+    #         dest: "/etc/kubernetes/nginx-cp.conf"
+    #         owner: root
+    #         group: root
+    #         mode: "0440"
+
+    #     - name: Copy to static pods dir. Autostart when kube init
+    #       ansible.builtin.template:
+    #         #src: kube-vip.j2
+    #         src: nginx.yaml.j2
+    #         #dest: "/etc/kubernetes/manifests/kube-vip.yaml"
+    #         dest: "/etc/kubernetes/manifests/kube-nginx-cp.yaml"
+    #         owner: root
+    #         group: root
+    #         mode: "0440"
+
+    - name: Kubeadm init
+      when: inventory_hostname == "master_0"
+      # определяем обязательно run_once, иначе факты собранные в этой таске не будут видны на других узлах.
+      run_once: true
+      block:
+        - name: Kubeadm init
+          changed_when: false
+          ansible.builtin.command: >-
+            kubeadm init
+            --config {{ k8s_kubeadm_config_file_path }}
+            {% if k8s_ha_mode %}
+            --upload-certs
+            {% endif %}
+          register: k8s_init_out
+
+        - name: DBG kubeinit output info
+          ansible.builtin.debug:
+            msg: "{{ k8s_init_out.stdout.split('\n') }}"
+
+        - name: Create kubeAPI config
+          ansible.builtin.import_tasks: ./config.yml
+
+        - name: Extract data for kubeadm join
+          ansible.builtin.set_fact:
+            k8s_join_token: "{{ k8s_init_out.stdout | regex_search('--token ([a-z0-9.]*)', '\\1') | first | trim }}"
+            k8s_join_discovery_token: "{{ k8s_init_out.stdout | regex_search('--discovery-token-ca-cert-hash (sha256:[a-zA-Z0-9]*)', '\\1') | first | trim }}"
+            k8s_join_address: "{{ k8s_init_out.stdout | regex_search('join ([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+:[0-9]+)', '\\1') | first | trim }}"
+
+        - name: Extra token for control plane
+          when: k8s_ha_mode | bool
+          ansible.builtin.set_fact:
+            k8s_control_plane_key: "{{ k8s_init_out.stdout | regex_search('--certificate-key ([a-zA-Z0-9]*)', '\\1') | first | trim }}"
+
+        - name: DBG check extracted data
+          vars:
+            msg: |
+              join-address:                 {{ k8s_join_address }}
+              token:                        {{ k8s_join_token }}
+              discovery-token-ca-cert-hash: {{ k8s_join_discovery_token }}
+              {% if k8s_ha_mode %}
+              k8s_control_plane_key:        {{ k8s_control_plane_key }}
+              {% endif %}
+          ansible.builtin.debug:
+            msg: "{{ msg.split('\n') }}"
+
+        - name: Write extracted data to a file (may be useful)
+          ansible.builtin.copy:
+            content: |
+              join-address:                 {{ k8s_join_address }}
+              token:                        {{ k8s_join_token }}
+              discovery-token-ca-cert-hash: {{ k8s_join_discovery_token }}
+              {% if k8s_ha_mode %}
+              k8s_control_plane_key:        {{ k8s_control_plane_key }}
+              {% endif %}
+            dest: "{{ k8s_kubeadm_join_creds_file_path }}"
+            mode: "0644"

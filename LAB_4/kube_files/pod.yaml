@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-gcr
+  labels:
+    app: hello-gcr
+spec:
+  containers:
+    - name: hello-gcr
+      image: gcr.io/google-samples/hello-app:1.0
+      imagePullPolicy: IfNotPresent
+      resources:
+        requests:
+          memory: 100Mi
+          cpu: 200m
+        limits:
+          memory: 100Mi
+          cpu: 200m
+      env:
+        - name: TZ
+          value: "Europe/Moscow"
+      ports:
+        - containerPort: 8080
+          name: hello-gcr-p

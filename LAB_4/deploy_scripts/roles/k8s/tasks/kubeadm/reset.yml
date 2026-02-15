@@ -1,0 +1,49 @@
+---
+- name: Kubeadm reset
+  become: true
+  block:
+    - name: Remove the file with creds
+      ansible.builtin.file:
+        path: "{{ k8s_kubeadm_join_creds_file_path }}"
+        state: absent
+
+    - name: Delete .kube directory if already exists
+      ansible.builtin.file:
+        state: absent
+        path: "{{ k8s_user_config_dir }}"
+
+    - name: Kubeadm reset node
+      changed_when: false
+      ansible.builtin.shell: >-
+        kubeadm reset --force --cri-socket={{ k8s_crio_socket }} || true
+      register: k8s_reset_output
+
+    - name: Ipvsadm clear
+      when: k8s_ipvs_enable | bool
+      changed_when: false
+      ansible.builtin.shell: ipvsadm --clear || true
+
+    - name: Clear cni interface
+      changed_when: false
+      ansible.builtin.shell: "ip link delete {{ item }} || true"
+      ignore_errors: true
+      with_items:
+        - cni0
+        - flannel.1
+        - kube-ipvs0
+
+    - name: Dbg info
+      ansible.builtin.debug:
+        msg: "{{ k8s_reset_output.stdout.split('\n') }}"
+
+    - name: Delete vip address
+      changed_when: false
+      when: inventory_hostname == "master_0" and k8s_ha_mode
+      ansible.builtin.command: >-
+        ip addr
+        {% if k8s_ha_mode %}
+        del {{ k8s_control_plan_vip }}/24
+        {% else %}
+        del {{ ansible_facts['default_ipv4']['address'] }}/24
+        {% endif %}
+        dev {{ k8s_control_plan_iface }}

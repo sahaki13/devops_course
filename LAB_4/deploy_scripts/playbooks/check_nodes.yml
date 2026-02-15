@@ -1,0 +1,19 @@
+- name: Ping hosts # play name
+  hosts:
+    - masters # совпадает с логическим названием группы из hosts.yml
+    - workers
+  # example
+  # vars: # можно добавлять переменные на этом уровне
+  #   host_level_var_test2: from_play
+  gather_facts: true
+  roles:
+    - { role: ping, tags: ['ping'] }
+
+# example
+# - name: Combined ping + facts # play name
+#   hosts:
+#     - all_nodes # совпадает с логическим названием группы из hosts.yml
+#   gather_facts: true
+#   roles: # list roles
+#     # - { role: ping, tags: ['ping'] }
+#     - { role: facts, tags: ['get_facts'] }

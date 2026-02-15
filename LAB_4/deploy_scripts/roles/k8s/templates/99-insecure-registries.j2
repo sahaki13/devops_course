@@ -1,0 +1,6 @@
+{%- for registry in k8s_insecure_registry.addr -%}
+[[registry]]
+location = "{{ registry }}"
+insecure = true
+
+{% endfor -%}

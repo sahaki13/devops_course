@@ -1,0 +1,35 @@
+# example
+- name: Print all facts.
+  when: false
+  ansible.builtin.debug:
+    var: ansible_facts
+
+- name: Print some variables from all facts.
+  ansible.builtin.debug:
+    msg:
+      - "Architecture:   {{ ansible_facts['architecture'] }}"
+      - "Machine:        {{ ansible_facts['machine'] }}"
+      - "Distribution:   {{ ansible_facts['distribution'] }}"
+      - "Version:        {{ ansible_facts['distribution_version'] }}"
+      - "Codename:       {{ ansible_facts['distribution_release'] }}"
+      - "Kernel version: {{ ansible_facts['kernel'] }}"
+      - "Hostname:       {{ ansible_facts['nodename'] }}"
+      - "{{ ansible_facts['ssh_host_key_ed25519_public'] }}"
+      - "{{ ansible_user }}"
+      - "{{ ansible_facts['user_id'] }}"
+      - "{{ ansible_facts['default_ipv4']['address'] }}"
+      - "SWAP_TOTAL:    {{ ansible_facts['swaptotal_mb'] }}"
+      - "MY custom var: {{ facts_my_custom_var }}"
+
+- name: Override custom variable
+  vars:
+    facts_my_custom_var: override_var1156
+  ansible.builtin.debug:
+    msg:
+      - "MY custom var {{ facts_my_custom_var }}"
+
+# - name: Custom variable
+#   ansible.builtin.debug:
+#     msg:
+#       - "host level var1: {{ host_level_var_test1 }}"
+#       - "host level var2: {{ host_level_var_test2 }}"

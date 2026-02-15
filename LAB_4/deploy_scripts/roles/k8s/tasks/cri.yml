@@ -1,0 +1,183 @@
+---
+- name: Container runtime interface
+  become: true
+  block:
+    - name: Install crio
+      block:
+        - name: Obtain cri key
+          ansible.builtin.get_url:
+            url: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/{{ k8s_crio_version }}/deb/Release.key"
+            dest: /tmp/cri-o.asc
+            mode: '0640'
+
+        - name: Convert ASCII key to binary GPG format
+          ansible.builtin.command:
+            cmd: gpg --dearmor -o /etc/apt/keyrings/cri-o.gpg /tmp/cri-o.asc
+            creates: /etc/apt/keyrings/cri-o.gpg
+
+        - name: Cri repository
+          ansible.builtin.apt_repository:
+            state: present
+            repo: >
+              deb [signed-by=/etc/apt/keyrings/cri-o.gpg] {{ k8s_crio_repo_mirror }} /
+            filename: cri-o
+
+        - name: Cri pkgs
+          ansible.builtin.apt:
+            state: present
+            name: "{{ k8s_crio_packages }}"
+            update_cache: true
+
+    # - name: Install crio
+    #   block:
+    #     - name: Download crio
+    #       ansible.builtin.get_url:
+    #         url: "https://storage.googleapis.com/cri-o/artifacts/cri-o.{{ k8s_crio_arch }}.{{ k8s_crio_version }}.tar.gz"
+    #         dest: /opt
+    #         mode: '0640'
+
+    #     - name: Unarchive crio
+    #       ansible.builtin.unarchive:
+    #         src: "/opt/cri-o.{{ k8s_crio_arch }}.{{ k8s_crio_version }}.tar.gz"
+    #         dest: /opt
+    #         remote_src: true
+
+    #     - name: Install crio
+    #       ansible.builtin.shell:
+    #         cmd: /opt/cri-o/install
+    #         chdir: /opt/cri-o
+
+    - name: Install crictl with completion
+      block:
+        - name: Download crictl tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/{{ k8s_crictl_version }}/crictl-{{ k8s_crictl_version }}-linux-amd64.tar.gz"
+            dest: /opt
+            mode: '0640'
+
+        - name: Install crictl
+          ansible.builtin.unarchive:
+            src: "/opt/crictl-{{ k8s_crictl_version }}-linux-amd64.tar.gz"
+            dest: /usr/bin
+            remote_src: true
+
+        - name: Create a bash_completion.d dir if it does not exist
+          ansible.builtin.file:
+            path: /etc/bash_completion.d
+            state: directory
+            mode: '0755'
+
+        - name: Add crictl bash_complition
+          changed_when: false
+          ansible.builtin.shell: crictl completion > /etc/bash_completion.d/crictl
+
+    - name: Registry cert (optional)
+      when: k8s_secure_registry.enabled | bool and
+            k8s_secure_registry.cert | bool
+      block:
+        - name: Crio reg cert dir
+          ansible.builtin.file:
+            state: directory
+            recurse: true
+            path: "{{ k8s_crio_reg_cert_dir }}"
+
+        - name: Install cryptography python package (for community.crypto.get_certificate)
+          ansible.builtin.pip:
+            name: cryptography>=1.6
+            break_system_packages: true
+
+        - name: Get cert
+          run_once: true
+          community.crypto.get_certificate:
+            host: "{{ k8s_secure_registry.name }}"
+            port: 443
+            asn1_base64: true
+          register: k8s_registry_cert
+
+        - name: Copy cert to certs dir
+          ansible.builtin.copy:
+            content: "{{ k8s_registry_cert.cert }}"
+            dest: "{{ k8s_crio_reg_cert_dir }}/cert.crt"
+            mode: "0440"
+
+    - name: Configure cri and run daemon
+      block:
+        - name: Crictl conf
+          ansible.builtin.copy:
+            content: |-
+              runtime-endpoint: "{{ k8s_crio_socket }}"
+              timeout: 0
+              debug: false
+            dest: /etc/crictl.yaml
+            mode: "0440"
+
+        - name: Crio registry file
+          ansible.builtin.copy:
+            content: |-
+              unqualified-search-registries = [
+                "docker.io",
+                "quay.io"
+              ]
+            dest: /etc/containers/registries.conf.d/crio.conf
+            mode: "0440"
+
+        - name: Add insecure registries to crio conf
+          when: k8s_insecure_registry.enabled | bool
+          ansible.builtin.template:
+            src: 99-insecure-registries.j2
+            dest: /etc/containers/registries.conf.d/99-insecure-registries.conf
+            mode: "0640"
+
+        - name: Run crio service.
+          ansible.builtin.systemd_service:
+            name: crio
+            state: started
+            enabled: true
+
+        - name: Check crictl
+          ansible.builtin.command: "crictl --runtime-endpoint {{ k8s_crio_socket }} version"
+          changed_when: false
+          register: k8s_crictl_version
+
+        - name: Show crictl status
+          ansible.builtin.debug:
+            msg: "{{ k8s_crictl_version.stdout.split('\n') }}"
+
+############################ interaction without root ###########################
+# - name: Ensure group "crictl" exists.
+#   ansible.builtin.group:
+#     name: crictl
+#     state: present
+#
+# - name: Adding host user to crictl group.
+#   user:
+#     name: "{{ansible_user}}"
+#     groups: crictl
+#     append: true
+#
+# - name: Adding host user to crictl group.
+#   user:
+#     name: "{{ansible_user}}"
+#     groups: crictl
+#     append: true
+#
+# - name: Change file ownership, group and permissions
+#   ansible.builtin.file:
+#     path: /var/run/crio/crio.sock
+#     group: crictl
+#
+# - name: change crio systemd file. run without root after reboot service/system
+#   lineinfile:
+#     dest: /etc/systemd/system/cri-o.service
+#     insertafter: 'ExecReload='
+#     line: "ExecStartPost=/bin/sh -c 'chmod 0775 /var/run/crio/crio.sock && chgrp crictl /var/run/crio/crio.sock'"
+#
+# - name: daemon-reload
+#   systemd_service:
+#     daemon_reload: true
+#
+# - name: restart crio service.
+#   systemd_service:
+#     name: crio
+#     state: restarted
+##############################################################################

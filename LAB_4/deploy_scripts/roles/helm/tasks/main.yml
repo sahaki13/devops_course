@@ -1,0 +1,11 @@
+---
+- name: Helm install
+  ansible.builtin.import_tasks: ./helm_install.yml
+  tags:
+    - helm_install
+
+- name: Helm uninstall
+  ansible.builtin.import_tasks: ./helm_uninstall.yml
+  tags:
+    - never
+    - helm_uninstall

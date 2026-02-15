@@ -1,0 +1,27 @@
+---
+- name: Copying configuration for interaction with the kubeAPI.
+  become: true
+  block:
+    - name: Setup config
+      block:
+        - name: Delete .kube directory if already exists
+          ansible.builtin.file:
+            state: absent
+            path: "{{ k8s_user_config_dir }}"
+
+        - name: Mkdir user k8s dir
+          ansible.builtin.file:
+            state: directory
+            path: "{{ k8s_user_config_dir }}"
+            group: 1000
+            owner: 1000
+            mode: "0755"
+
+        - name: Copy kubernets config to user dir
+          ansible.builtin.copy:
+            remote_src: true
+            src: /etc/kubernetes/admin.conf
+            dest: "{{ k8s_user_config_dir }}/config"
+            owner: 1000
+            group: 1000
+            mode: "0640"

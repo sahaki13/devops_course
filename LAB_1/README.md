@@ -133,6 +133,22 @@ $ ssh debian@192.168.99.101 # worker0
 $ ssh debian@192.168.99.102 # worker1
 ```
 
+## Libvirt shared fs
+* [Libvirt shared dir](https://libvirt.org/kbase/virtiofs.html)
+
+Выбираем нужную VM в virt-manager, жмем на `VM hardware details` и нажимаем `Add hardware` и заполняем своими значенями.
+
+![shared_dir](./docs/shared_dir.png "shared_dir")
+
+После этого остановить и запустить VM, после входа в систему примонтировать диск:
+```
+# <target_path> <path_to_mount> virtiofs defaults 0 0
+shared_dir /home/debian/work virtiofs defaults 0 0 # добавить запись в /etc/fstab
+
+# systemctl daemon-reload
+# mount -a # команда чтобы примонтировать все что в /etc/fstab
+```
+
 ## При показе выполненного задания
    * Запустить все ВМ
    * Подключиться к ним по ssh

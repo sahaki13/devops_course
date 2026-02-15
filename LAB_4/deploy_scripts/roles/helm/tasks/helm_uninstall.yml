@@ -1,0 +1,26 @@
+---
+- name: Uninstalling helm
+  become: true
+  when: inventory_hostname is search("master")
+  block:
+    - name: Helm keyrings
+      ansible.builtin.file:
+        state: absent
+        path: "{{ helm_keyrings_path }}"
+
+    - name: Helm apt repository
+      ansible.builtin.apt_repository:
+        state: absent
+        repo: "deb [signed-by={{ helm_keyrings_path }}] {{ helm_repo }}/any/ any main"
+        filename: helm
+
+    - name: Uninstall helm
+      ansible.builtin.apt:
+        state: absent
+        clean: true
+        name: "{{ helm_packages }}"
+
+    - name: Helm shell completion
+      ansible.builtin.file:
+        path: /etc/bash_completion.d/helm
+        state: absent

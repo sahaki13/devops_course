@@ -1,0 +1,43 @@
+k8s_ipvs_enable: true
+
+# Append entry to the /etc/hosts for resolve name (optional)
+k8s_add_registry_domain_to_hosts: true
+k8s_secure_registry:
+  enabled: false
+  # ADD cert to cri if SECURE registry failed to verify certificate: x509: certificate signed by unknown authority
+  cert: true
+  creds: "<your_login>:<your_password>"
+  ip: <ip>
+  name: <registry_dns>
+
+k8s_insecure_registry:
+  enabled: true # Enable if using an insecure registry.
+  ip: 192.168.99.100
+  dns_name: gitlab # local
+  network: 192.168.99.1/24
+  addr:
+    - 192.168.99.100:5050
+    - gitlab:5050
+
+k8s_version: v1.35
+k8s_repo_mirror: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/{{ k8s_version }}/deb"
+                 # "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb" # blocked
+                 # "https://mirrors.aliyun.com/kubernetes-new/core/stable/{{ k8s_version }}/deb" # ok
+k8s_crio_arch: amd64
+k8s_crio_repo_mirror: "https://mirror.tspu.ru/opensuse/repositories/isv:/cri-o:/stable:/{{ k8s_version }}/deb"
+                      # https://download.opensuse.org/repositories/isv:/cri-o:/stable:/{{ k8s_version }}/deb # blocked
+k8s_crio_version: "{{ k8s_version }}"
+k8s_crictl_version: v1.35.0
+k8s_crio_reg_cert_dir: "{{ k8s_crio_cert_dir }}/{{ k8s_secure_registry.name }}"
+
+k8s_pod_network: "10.244.0.0/16"
+# k8s_cluster_domain: "cluster.preprod"
+# k8s_cluster_domain: "cluster.test"
+k8s_cluster_domain: "cluster.dev"
+
+k8s_user_config_dir: "{{ ansible_facts['env']['HOME'] }}/.kube"
+
+k8s_ha_mode: false
+k8s_control_plan_vip: "192.168.99.100"
+# iface (with host addr)
+k8s_control_plan_iface: "enp1s0"

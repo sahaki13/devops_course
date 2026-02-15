@@ -93,7 +93,7 @@ resource "libvirt_cloudinit_disk" "vm_cloudinit" {
         - { name: root, password: ${var.root_pswd_hash} }
         - { name: debian, type: RANDOM }
 
-    # Install and enable SSH server
+    # Install some dependencies
     package_update: true
     package_upgrade: true
     packages:
@@ -102,9 +102,13 @@ resource "libvirt_cloudinit_disk" "vm_cloudinit" {
       - vim
       - htop
       - jq
+      - tree
+      - dnsutils
+      # - nmap
+      # - net-tools
       - qemu-guest-agent
 
-    # Optional: Add SSH public key for key-based auth (more secure)
+    # Add SSH public key for key-based auth (more secure)
     ssh_authorized_keys:
       - ${file(var.ssh_pubkey_path)}
 

@@ -1,0 +1,94 @@
+#---
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  namespace: kube-system
+#  name:      nginx-cp-svc
+#spec:
+#  type: NodePort
+#  externalTrafficPolicy: Local #
+#  selector:
+#    app: nginx-cp
+#  ipFamilies:
+#  - IPv4
+#  ipFamilyPolicy: SingleStack
+#  ports:
+#  - appProtocol: http
+#    name:        http
+#    port:        80
+#    protocol:    TCP
+#    targetPort:  http
+#    nodePort:    31080 #
+#
+#  - appProtocol: https
+#    name:        https
+#    port:        443
+#    protocol:    TCP
+#    targetPort:  https
+#    nodePort:    31443 #
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: kube-system
+  name:      nginx-cp
+spec:
+#  selector:
+#    matchLabels:
+#      app: nginx-cp
+#  template:
+#    metadata:
+#      labels:
+#        app: nginx-cp
+#    spec:
+
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priority: 2000001000
+      priorityClassName: system-node-critical
+
+      containers:
+      - name:  nginx-cp
+        image: nginx:1.22.1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+          name:          http
+          protocol:      TCP
+        - containerPort: 443
+          name:          https
+          protocol:      TCP
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        resources:
+          requests:
+            memory: 50Mi
+            cpu:    0.1
+          limits:
+            memory: 50Mi
+            cpu:    0.1
+        env:
+        - name: TZ
+          value: "Europe/Moscow"
+        livenessProbe:
+          httpGet:
+            path:   /ping
+            port:   81
+            scheme: HTTP
+          initialDelaySeconds: 2
+          periodSeconds:       1
+        readinessProbe:
+          httpGet:
+            path:   /ping
+            port:   81
+            scheme: HTTP
+          initialDelaySeconds: 2
+          periodSeconds:       1
+      volumes:
+      - name: nginx-conf
+        hostPath:
+          path: /etc/kubernetes/nginx-cp.conf
+---

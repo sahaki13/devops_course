@@ -1,0 +1,161 @@
+---
+- name: Cleanup crio and k8s installation
+  become: true
+  block:
+    - name: Remove registry dns entry from /etc/hosts
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        state: absent
+        block: ""
+
+    - name: Remove completions
+      ansible.builtin.file:
+        path: "/etc/bash_completion.d/{{ item }}"
+        state: absent
+      with_items:
+        - kubectl
+        - kubeadm
+        - crictl
+
+    - name: Cleanup kubernetes
+      block:
+        - name: Delete k8s key.
+          ansible.builtin.file:
+            state: absent
+            path: /etc/apt/keyrings/kubernetes.gpg
+
+        - name: Delete K8s apt repository.
+          ansible.builtin.apt_repository:
+            state: absent
+            repo: "deb [signed-by=/etc/apt/keyrings/kubernetes.gpg] {{ k8s_repo_mirror }} /"
+            filename: "kubernetes"
+
+        - name: Delete .kube directory
+          ansible.builtin.file:
+            state: absent
+            path: "{{ k8s_user_config_dir }}"
+
+        - name: Kubeadm reset
+          ignore_errors: true
+          changed_when: false
+          ansible.builtin.command: "kubeadm reset --force --cri-socket={{ k8s_crio_socket }}"
+
+        - name: Stop kube services.
+          ignore_errors: true
+          ansible.builtin.systemd_service:
+            name: "{{ item }}"
+            state: stopped
+            enabled: false
+          with_items:
+            - kubelet
+            - kubepods.slice
+
+        - name: Delete dirs
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - /etc/kubernetes
+            - /opt/cni
+            - "{{ k8s_kubeadm_config_file_path }}"
+            - "{{ k8s_kubeadm_join_creds_file_path }}"
+
+        - name: Delete kube deps
+          ansible.builtin.apt:
+            state: absent
+            clean: true
+            name: "{{ k8s_kube_packages }}"
+
+    - name: Crio
+      ignore_errors: true
+      block:
+        - name: Remove crio containers
+          changed_when: false
+          ansible.builtin.command: crictl rm --all --force
+          register: k8s_crictl_rm
+
+        - name: Remove crio pods
+          changed_when: false
+          ansible.builtin.command: crictl rmp --all --force
+          register: k8s_crictl_rmp
+
+        - name: Remove crio images
+          changed_when: false
+          ansible.builtin.command: crictl rmi --all --prune
+          # ansible.builtin.command: crictl rmi $(crictl images | awk 'NR>1 {printf "%s:%s", $1,$2}')
+          register: k8s_crictl_rmi
+
+        - name: Show dbg info crio rm (if skipping, then nothing to did)
+          ansible.builtin.debug:
+            msg: "{{ item }}"
+          with_items:
+            - "{{ k8s_crictl_rmp.stdout_lines }}"
+            - "{{ k8s_crictl_rm.stdout_lines }}"
+            - "{{ k8s_crictl_rmi.stdout_lines }}"
+
+        - name: Stop crio services
+          ansible.builtin.systemd_service:
+            name: "{{ item }}"
+            state: stopped
+            enabled: false
+          with_items:
+            - crio
+            # - cri-o
+
+        - name: Umount crio overlay
+          ansible.posix.mount:
+            path: /var/lib/containers/storage/overlay
+            state: unmounted
+
+        - name: Delete dirs and files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - /var/lib/crio
+            - /etc/containers
+            - /etc/crio
+            - /usr/bin/crictl
+            - /usr/local/bin/crio  # from archive
+            - /etc/cni
+            - /var/lib/containers  # crio image data dir
+            - /etc/crictl.yaml
+            - /var/lib/cni
+            - /etc/default/crio
+            - /var/log/crio
+            - /run/crio
+            - /usr/share/bash-completion/completions/_crictl
+
+        - name: Delete crio deps
+          ansible.builtin.apt:
+            state: absent
+            clean: true
+            name: "{{ k8s_crio_packages }}"
+
+        - name: Delete cri key
+          ansible.builtin.file:
+            state: absent
+            path: /etc/apt/keyrings/cri-o.gpg
+
+        - name: Delete cri repository
+          ansible.builtin.apt_repository:
+            state: absent
+            repo: >
+              deb [signed-by=/etc/apt/keyrings/cri-o.gpg] {{ k8s_crio_repo_mirror }} /
+            filename: cri-o
+
+    - name: Cleanup networks
+      block:
+        - name: Ipvsadm clear
+          when: k8s_ipvs_enable | bool
+          changed_when: false
+          ansible.builtin.shell: ipvsadm --clear || true
+
+        - name: Clear cni interface
+          changed_when: false
+          ansible.builtin.shell: "ip link delete {{ item }} || true"
+          ignore_errors: true
+          with_items:
+            - cni0
+            - flannel.1
+            - kube-ipvs0

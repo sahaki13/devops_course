@@ -1,19 +1,23 @@
 # ЛАБОРАТОРНАЯ №3. Continuous Integration. Gitlab
 
+## Docs
+
+* [Gitlab docs](https://docs.gitlab.com/)
+* [Runner creation](https://docs.gitlab.com/tutorials/automate_runner_creation)
+
+
 Требования:
 
 1) Развернуть CI систему
 
    Подключиться по ssh к ВМ master-0.
    Перед началом задания добавить файл `daemon.json` в `/etc/docker/` и перезапустить докер.
-   Добавить запись `192.168.100.2 gitlab` в конец файла /etc/hosts.
    Перейти в директорию с заданием, создать файл .env с переменной содержащей пароль и развернуть Gitlab.
    Инициализация займет некоторое время, все последующие запуски будут быстрее.
 ```
 $ su -
 # cp /home/$(id -un 1000)/work/devops_course/LAB_3/gitlab/daemon.json /etc/docker/daemon.json
 # systemctl restart docker.service
-# echo "192.168.100.2 gitlab" >> /etc/hosts
 # exit
 $ cd ~/work/devops_course/LAB_3/gitlab
 $ ./scripts/prepare_env.sh
@@ -26,8 +30,6 @@ $ docker compose up -d gitlab
    * Создать репозиторий для вашего приложения http://192.168.99.100/projects/new#blank_project и загрузить приложение в Gitlab
 
 2) Создать и запустить runner.
-
-   https://docs.gitlab.com/tutorials/automate_runner_creation
 
    * Перейти http://192.168.99.100:80/-/user_settings/personal_access_tokens
    * Нажать на `Add new token`
@@ -46,6 +48,6 @@ $ docker compose up -d gitlab
 4) Запустить pipeline в Gitlab, проверить что все этапы завершились без ошибок и образ появился в registry.
 
 ## При показе выполненного задания
-   * Продемонстрировать успешное развертывание Gitlab + runner, свой .gitlab-ci манифест
-   * Выполнить загрузку полученных образов на одну из worker- ВМ (предварительно установив docker)
-   * Запустить образы на worker- и продемонстрировать что log отличается
+   * Продемонстрировать успешное развертывание **Gitlab** + **runner** + **.gitlab-ci.yml** манифест
+   * Внести изменения в проект, запустить пайплайн и дождаться окончания сборки
+   * Запустить собранные образы на master-0 и продемонстрировать отличия в версиях образов (например отличается лог при запуске/работе сервиса)

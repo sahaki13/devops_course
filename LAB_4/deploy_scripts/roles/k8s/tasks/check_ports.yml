@@ -1,0 +1,23 @@
+---
+- name: Checking ports required for kubeapi.
+  block:
+    - name: Check if port is open
+      changed_when: false
+      ignore_errors: true
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: 6443
+        state: started
+        delay: 0
+        timeout: 2
+      register: k8s_port_status
+
+    - name: Print port status
+      ansible.builtin.fail:
+        msg: "The port 6443 is open, which is not expected."
+      when: not k8s_port_status.failed
+
+    - name: Print port status
+      ansible.builtin.debug:
+        msg: "[ OK ] Port {{ ansible_host | default(inventory_hostname) }}:6443 is closed"
+      when: k8s_port_status.failed
