@@ -1,4 +1,4 @@
-# ЛАБОРАТОРНАЯ №4. IaC. Ansible
+# ЛАБОРАТОРНАЯ №4. Infrastructure as Code (IaC), Ansible
 
 ## Docs
 

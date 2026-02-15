@@ -136,7 +136,7 @@ $ ssh debian@192.168.99.102 # worker1
 ## Libvirt shared fs
 * [Libvirt shared dir](https://libvirt.org/kbase/virtiofs.html)
 
-Выбираем нужную VM в virt-manager, жмем на `VM hardware details` и нажимаем `Add hardware` и заполняем своими значенями.
+Выбираем нужную VM в virt-manager, жмем на `VM hardware details`, затем `Add hardware` и заполняем своими значенями.
 
 ![shared_dir](./docs/shared_dir.png "shared_dir")
 
