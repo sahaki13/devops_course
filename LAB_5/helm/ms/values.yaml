@@ -1,0 +1,63 @@
+################################################################################
+# custom values
+
+ms:
+  environment: dev
+  repository: 192.168.99.100:5050/root/echo-server
+  tag: 2.3.1
+  name: echo-server
+  port: 3000
+  ns: dev
+  rs: 3
+  update:
+    maxUnavailable: 1 # Количество обновляемых подов в один момент
+    maxSurge: 0 # Запрет на создание реплик выше того что в rs
+
+  imagePullSecrets:
+    - name: gitlab-insecure-registry
+
+  probes:
+    enabled: true
+    initialDelaySeconds: 7
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 3
+    liveness:
+      enabled: true
+      path: /healthcheck
+    readiness:
+      enabled: true
+      path: /healthcheck
+  resources:
+    requests:
+      memory: 50Mi
+      cpu: 100m
+    limits:
+      memory: 50Mi
+      cpu: 100m
+  envs:
+    - name: TZ
+      value: Europe/Moscow
+    - name: LOG_HOME
+      value: /log
+    - name: LOG_LEVEL
+      value: info
+    - name: DOTENV_PATH
+      value: /empty/.env
+
+  vault_secrets:
+    enabled: true # true - чтобы забрать секреты из vault
+    role: vault-auth
+    debug_init_container: false
+
+service:
+  type: ClusterIP # NodePort or ClusterIP
+  nodePort: 31001
+
+ingress:
+  enabled: true
+  hosts:
+    - host: echo-server.test.local # совпадает с тем что в /etc/hosts добавили
+      paths:
+        - path: /
+          pathType: Prefix

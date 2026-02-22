@@ -1,0 +1,38 @@
+{{ include "vault.checkNamespace" . }}
+# Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.headless.name }}
+  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+spec:
+  selector:
+    app: vault
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: api-port
+      port: {{ .Values.services.headless.apiPort }}
+      targetPort: api
+    - name: cluster-port
+      port: {{ .Values.services.headless.clusterPort }}
+      targetPort: cluster
+---
+# UI access
+{{- if .Values.services.ui.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.statefulset.name }}
+  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+spec:
+  selector:
+    app: {{ .Values.services.ui.name }}
+  type: {{ .Values.services.ui.type }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.services.ui.port }}
+      {{- if eq .Values.services.ui.type "NodePort" }}
+      nodePort: {{ .Values.services.ui.nodePort }}
+      {{- end }}
+{{- end }}

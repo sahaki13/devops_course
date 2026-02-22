@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: remove-vault-storage
+spec:
+  ttlSecondsAfterFinished: 5 # remove job after N sec
+  template:
+    spec:
+      containers:
+        - name: bootstrap
+          image: docker.io/library/busybox:1.37.0-musl
+          securityContext:
+            runAsUser:  0
+            runAsGroup: 0
+          command: [ "/bin/sh", "-c" ]
+          args:
+            - |
+              if [ -d /mnt/vault_data ]; then
+                rm -Rfv /mnt/vault_data
+              else
+                echo "Storage not found"
+              fi
+          volumeMounts:
+            - name: host-mnt
+              mountPath: /mnt
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: worker-0
+      volumes:
+        - name: host-mnt
+          hostPath:
+            path: /mnt
+            type: Directory
+  backoffLimit: 1

@@ -1,0 +1,129 @@
+global:
+  namespace: ""
+
+# --- ServiceAccounts ---
+serviceAccounts:
+  vault:
+    create: true
+    name: vault-auth
+    namespace: vault
+    keepResource: false
+  sandbox:
+    create: true
+    name: vault-auth
+    namespace: sandbox
+    keepResource: false
+  dev:
+    create: true
+    name: vault-auth
+    namespace: dev
+    keepResource: false
+
+# --- ClusterRoleBinding ---
+clusterRoleBinding:
+  create: true
+  name: role-tokenreview-binding
+  keepResource: false
+
+# --- StatefulSet ---
+statefulset:
+  name: vault
+  replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  revisionHistoryLimit: 5
+  image:
+    repository: docker.io/hashicorp/vault
+    tag: 1.21.2
+    pullPolicy: IfNotPresent
+  securityContext:
+    pod:
+      runAsUser: 100
+      runAsGroup: 1000
+      fsGroup: 1000
+    container:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+  affinity:
+    nodes:
+      - worker-0
+      # - worker-1
+      # - worker-2
+  resources:
+    requests:
+      cpu: 256m
+      memory: 128Mi
+    limits:
+      cpu: 256m
+      memory: 128Mi
+  volumeClaimTemplates:
+    data:
+      storageClassName: local-storage
+      accessModes: [ReadWriteOnce]
+      size: 256Mi
+  env:
+    TZ: Europe/Moscow
+    SKIP_CHOWN: true
+    SKIP_SETCAP: true
+    HOME: /home/vault
+  ports:
+    api: 8200
+    cluster: 8201
+  lifecycle:
+    postStart:
+      enabled: true
+      sleepSeconds: 5
+      logPath: /tmp/init-log
+      scripts:
+        - /vault/scripts/init.sh
+        - /vault/scripts/unseal.sh
+        - /vault/scripts/update_auth_method.sh
+        # - /vault/scripts/create_users.sh
+        # - /vault/scripts/create_secrets.sh
+    preStop:
+      enabled: false
+      sleepSeconds: 5
+      commands:
+        - /bin/sh
+        - -c
+        - sleep {{ .Values.statefulset.lifecycle.preStop.sleepSeconds }} && kill -SIGTERM $(pidof vault)
+
+# --- Services ---
+services:
+  headless:
+    name: vault-svc
+    apiPort: 8200
+    clusterPort: 8201
+  ui:
+    enabled: true
+    # type: NodePort
+    type: ClusterIP # ingress
+    name: vault
+    port: 8200
+    nodePort: 32000
+
+# --- Ingress ---
+ingress:
+  hosts:
+    - host: vault.test.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# --- ConfigMap (Vault) ---
+configMap:
+  vault:
+    name: vault-cm
+    namespace: vault
+
+# --- Test Pod ---
+testPod:
+  namespace: dev
+  serviceAccountName: vault-auth
+  env:
+    vaultAddr: http://vault-svc.vault.svc:8200
+    secretPath: secrets/dev/echo-server/data/config
+    role: vault-auth

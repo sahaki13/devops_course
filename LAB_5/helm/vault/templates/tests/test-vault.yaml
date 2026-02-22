@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: {{ .Values.testPod.namespace }}
+  name: "{{ include "vault.fullname" . }}-test"
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # "helm.sh/hook-weight": "-1"
+spec:
+  activeDeadlineSeconds: 30
+  restartPolicy: Never
+  serviceAccountName: {{ .Values.testPod.serviceAccountName }}
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    sysctls: []
+  terminationGracePeriodSeconds: 0
+  containers:
+    - name: dev-jq-curl-1
+      image: docker.io/pnnlmiscscripts/curl-jq:1.6-15
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+      env:
+        - name: TZ
+          value: "Europe/Moscow"
+        - name: VAULT_ADDR
+          value: {{ .Values.testPod.env.vaultAddr | quote }}
+        - name: SECRET_PATH
+          value: {{ .Values.testPod.env.secretPath | quote }}
+        - name: ROLE
+          value: {{ .Values.testPod.env.role | quote }}
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+
+          echo "Vault addr: $VAULT_ADDR"
+          echo "Logging into Vault..."
+          sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
+
+          v_t=$(curl -s \
+                     -X POST \
+                     -d "{\"jwt\":\"$sa_t\",\"role\":\"$ROLE\"}" \
+                      $VAULT_ADDR/v1/auth/kubernetes/login \
+                      | jq -r '.auth.client_token')
+          if [ "$v_t" == "null" ] || [ "$v_t" == "" ]; then echo "Auth failed"; exit 1; fi
+
+          echo "Getting secret: $SECRET_PATH"
+          curl -s \
+               -H "X-Vault-Token: $v_t" \
+               $VAULT_ADDR/v1/$SECRET_PATH \
+               | jq -r '.data.data | keys[] as $k | "\($k)=\(.[$k])"' \
+               | tee /tmp/.env
+
+          sleep 5

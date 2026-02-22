@@ -1,0 +1,170 @@
+{{ include "vault.checkNamespace" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.statefulset.name }}
+  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    app: vault
+spec:
+  serviceName: {{ .Values.services.headless.name }}
+  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
+  updateStrategy:
+    type: {{ .Values.statefulset.updateStrategy.type }}
+  selector:
+    matchLabels:
+      app: vault
+  replicas: {{ .Values.statefulset.replicas }}
+  revisionHistoryLimit: {{ .Values.statefulset.revisionHistoryLimit }}
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      serviceAccountName: {{ .Values.serviceAccounts.vault.name }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      {{- range .Values.statefulset.affinity.nodes }}
+                      - {{ . | quote }}
+                      {{- end }}
+      securityContext:
+        runAsUser: {{ .Values.statefulset.securityContext.pod.runAsUser }}
+        runAsGroup: {{ .Values.statefulset.securityContext.pod.runAsGroup }}
+        fsGroup: {{ .Values.statefulset.securityContext.pod.fsGroup }}
+        sysctls: []
+      containers:
+        - name: vault
+          image: "{{ .Values.statefulset.image.repository }}:{{ .Values.statefulset.image.tag }}"
+          imagePullPolicy: {{ .Values.statefulset.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: {{ .Values.statefulset.securityContext.container.runAsNonRoot }}
+            allowPrivilegeEscalation: {{ .Values.statefulset.securityContext.container.allowPrivilegeEscalation }}
+            capabilities:
+              drop: {{ .Values.statefulset.securityContext.container.capabilities.drop }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              vault server -config=/vault/config
+          lifecycle:
+            {{- if .Values.statefulset.lifecycle.postStart.enabled }}
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    sleep {{ .Values.statefulset.lifecycle.postStart.sleepSeconds | default 5 }}
+                    {{- range .Values.statefulset.lifecycle.postStart.scripts }}
+                    {{ . }} >> {{ $.Values.statefulset.lifecycle.postStart.logPath | default "/tmp/log" }} 2>&1
+                    {{- end }}
+            {{- end }}
+            {{- if .Values.statefulset.lifecycle.preStop.enabled }}
+            preStop:
+              exec:
+                command:
+                  - |
+                    {{- range .Values.statefulset.lifecycle.preStop.commands }}
+                    {{ . }}
+                    {{- end }}
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.statefulset.ports.api }}
+              name: api
+              protocol: TCP
+            - containerPort: {{ .Values.statefulset.ports.cluster }}
+              name: cluster
+              protocol: TCP
+          env:
+            - name: TZ
+              value: {{ .Values.statefulset.env.TZ | quote }}
+            - name: KEYS_FILE
+              value: "/mnt/vault_data/keys"
+            - name: SKIP_CHOWN
+              value: {{ .Values.statefulset.env.SKIP_CHOWN | quote }}
+            - name: SKIP_SETCAP
+              value: {{ .Values.statefulset.env.SKIP_SETCAP | quote }}
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VAULT_RAFT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VAULT_ADDR
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.api }}"
+            - name: VAULT_API_ADDR
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.api }}"
+            - name: VAULT_CLUSTER_ADDR
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.cluster }}"
+            - name: HOME
+              value: {{ .Values.statefulset.env.HOME }}
+          livenessProbe:
+            httpGet:
+              path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+              port: {{ .Values.statefulset.ports.api }}
+              scheme: HTTP
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  vault status -tls-skip-verify
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.statefulset.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /mnt/vault_data
+            - name: config
+              mountPath: /vault/config
+            - name: scripts
+              mountPath: /vault/scripts
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.configMap.vault.name }}
+            items:
+              - key: config.hcl
+                path: config.hcl
+        - name: scripts
+          configMap:
+            name: {{ .Values.configMap.vault.name }}
+            items:
+              - key: init.sh
+                path: init.sh
+              - key: unseal.sh
+                path: unseal.sh
+              - key: create_users.sh
+                path: create_users.sh
+              - key: create_secrets.sh
+                path: create_secrets.sh
+              - key: kubernetes_update_auth_method.sh
+                path: update_auth_method.sh
+            defaultMode: 0110
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: {{ .Values.statefulset.volumeClaimTemplates.data.storageClassName }}
+        accessModes:
+          {{- toYaml .Values.statefulset.volumeClaimTemplates.data.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.volumeClaimTemplates.data.size }}

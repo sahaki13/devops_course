@@ -1,0 +1,34 @@
+apiVersion: apps/v1 # меняется параметр apiVersion (можно искать так kubectl api-resources | grep --color -i rs)
+kind: ReplicaSet # тип объекта
+metadata:
+  name: echo-server-rs
+  namespace: echo-server
+spec:
+  replicas: 2 # кол-во реплик
+  selector: # связывание через селектор
+    matchLabels:
+      app: echo-server # указываем ту метку, с которой хотим связать
+  template:
+    metadata:
+      labels:
+        app: echo-server # задаем метку для пода
+    spec:
+      imagePullSecrets:
+        - name: <img-pull-secret>
+      containers:
+        - name: echo-server
+          image: <image>
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: 25Mi
+              cpu: 100m
+            limits:
+              memory: 25Mi
+              cpu: 100m
+          env:
+            - name: TZ
+              value: Europe/Moscow
+          # ports:
+          #   - containerPort: 3000
+          #     name: es-port

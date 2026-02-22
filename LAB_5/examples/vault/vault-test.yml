@@ -1,0 +1,75 @@
+### для проверки есть ли доступ у ns к vault
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: dev # namespace должен совпадать с тем что указывали в bound_service_account_namespaces
+  name: vault-test
+spec:
+  serviceAccountName: vault-auth # sa должен быть в ns где pod или sa не будет виден
+  # automountServiceAccountToken: false
+  securityContext: # для пода
+    runAsUser:  1000
+    runAsGroup: 1000
+    fsGroup:    1000
+    sysctls:    []
+  terminationGracePeriodSeconds: 0 # force delete
+  containers:
+    - name: dev-jq-curl-1
+      image: docker.io/pnnlmiscscripts/curl-jq:1.6-15
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        # readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ ALL ]
+      command:
+        - "sleep"
+        - "99999999"
+      env:
+        - name: TZ
+          value: "Europe/Moscow"
+      volumeMounts:
+        - name: scripts
+          mountPath: /usr/local/bin # full erase inside /usr/local/bin
+          # alternative. prevent erase
+          # mountPath: /usr/local/bin/get_secret.sh
+          # subPath: get_secret.sh
+  volumes:
+    - name: scripts
+      configMap:
+        name: vault-check-script
+        items:
+          - key: get_secret.sh
+            path: get_secret.sh
+        defaultMode: 0550
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-check-script
+  namespace: dev
+data:
+  get_secret.sh: |
+    #/bin/sh
+
+    set -e
+
+    path_to_secret="secrets/dev/echo-server/data/config"
+    vault_addr="http://vault-svc.vault.svc:8200"
+    role="vault-auth"
+    sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
+    v_t=$(curl -s \
+               -X POST \
+               -d "{\"jwt\":\"$sa_t\",\"role\":\"$role\"}" \
+                $vault_addr/v1/auth/kubernetes/login \
+                | jq -r '.auth.client_token')
+    echo $v_t
+    if [ "$v_t" == "null" ] || [ "$v_t" == "" ]; then echo "Auth failed"; exit 1; fi
+
+    curl -s \
+         -H "X-Vault-Token: $v_t" \
+         $vault_addr/v1/$path_to_secret \
+         | jq -r '.data.data | keys[] as $k | "\($k)=\(.[$k])"' \
+         | tee /tmp/.env

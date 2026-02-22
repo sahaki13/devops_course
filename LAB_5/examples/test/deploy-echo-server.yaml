@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-server-deploy
+  namespace: echo-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: echo-server
+  strategy: # Явно указываем стратегию развертывания
+    type: RollingUpdate # Стратегия обновления
+    rollingUpdate: # Параметры для стратегии RollingUpdate
+      maxUnavailable: 1 # количество подов которое может быть недоступно во время обновления
+      maxSurge: 1 # дополнительные поды которые прибавляются к replicas
+  template:
+    metadata:
+      labels:
+        app: echo-server
+    spec:
+      imagePullSecrets:
+        - name: <img-pull-secret>
+      containers:
+        - name: echo-server
+          image: <image>
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: 25Mi
+              cpu: 100m
+            limits:
+              memory: 25Mi
+              cpu: 100m
+          env:
+            - name: TZ
+              value: Europe/Moscow
+          # ports:
+          #   - containerPort: 3000
+          #     name: es-port
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3

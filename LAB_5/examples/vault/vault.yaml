@@ -1,0 +1,496 @@
+--- # обязательно. создаем sa для разных ns, к которым далее будем разрешать доступ к vault jwt
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: echo-server # затем будет использовать в vault
+  name: vault-auth # затем будет использоваться в vault role
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: vault
+  name: vault-auth # затем будет использоваться в vault role
+
+--- # обязательно. связываем кластерную роль system:auth-delegator с sa
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: role-tokenreview-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    namespace: echo-server
+    name: vault-auth
+  - kind: ServiceAccount
+    namespace: vault
+    name: vault-auth
+
+--- # headless service !!important for sts!!
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-svc # corresponding with serviceName
+  namespace: vault
+spec:
+  selector:
+    app: vault
+  clusterIP: None # headless service
+  publishNotReadyAddresses: true
+  ports:
+    - name: api-port
+      port: 8200
+      targetPort: api
+    - name: cluster-port
+      port: 8201
+      targetPort: cluster
+
+# дополнительный сервис для доступа к vault ui (первая реплика), простой способ доступа через NodePort
+# пока не отработает readiness проба, доступа к ui не будет, поэтому чтобы появился доступ нужно сначала
+# распаковать vault через unseal.sh зайдя в под, или убрать пробу
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-ui-nodeport-0-svc
+  namespace: vault
+spec:
+  selector:
+    app: vault
+    # с помощью этого label можно достичь результата (возможность sts), что каждый nodePort смотрит на конкретный экземпляр vault,
+    # тогда нужно добавлять еще один сервис, который будет смотреть на vault-1
+    statefulset.kubernetes.io/pod-name: vault-0 # corresponding with pod label (sts)
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 8200
+      nodePort: 32000
+
+# дополнительный сервис для доступа к vault ui (вторая реплика), простой способ доступа через NodePort
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: vault-ui-nodeport-1-svc
+#   namespace: vault
+# spec:
+#   selector:
+#     app: vault
+#     statefulset.kubernetes.io/pod-name: vault-1 # corresponding with pod label (sts)
+#   type: NodePort
+#   ports:
+#     - protocol: TCP
+#       port: 8200
+#       nodePort: 32001
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app: vault-sts
+spec:
+  serviceName: vault-svc # corresponding with headless svc name
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      app: vault
+  replicas: 1
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      serviceAccountName: vault-auth # важно, обязательно указываем sa для vault
+      # automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname # указываем ключ лейбла из nodes
+                    operator: In
+                    values:
+                      - 'worker-0' # указываем значение hostname из nodes для привязки
+                      - 'worker-1'
+      securityContext: # для пода
+        runAsUser:  100
+        runAsGroup: 1000
+        fsGroup:    1000
+        sysctls:    []
+      containers:
+      - name: vault
+        image: docker.io/hashicorp/vault:1.21.2
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          # readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ ALL ]
+            # add: [ "IPC_LOCK", "SETFCAP" ]
+        command: [ "/bin/sh", "-ec" ]
+        args:
+          - |
+            # sleep 99999 # dbg
+            vault server -config=/vault/config
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  sleep 5 # break asynchronously
+                  /vault/scripts/init.sh >> /tmp/log 2>&1
+                  /vault/scripts/unseal.sh >> /tmp/log 2>&1
+                  # /vault/scripts/create_users.sh >> /tmp/log 2>&1
+                  # /vault/scripts/create_secrets.sh >> /tmp/log 2>&1
+                  # /vault/scripts/setup_auth_method.sh >> /tmp/log 2>&1
+                  # vault audit enable file file_path=/vault/logs/audit.log
+          # preStop:
+          #   exec:
+          #     command:
+          #       - /bin/sh
+          #       - -c
+          #       - sleep 5 && kill -SIGTERM $(pidof vault)
+        ports:
+          - containerPort: 8200
+            name: api
+            protocol: TCP
+          - containerPort: 8201
+            name: cluster
+            protocol: TCP
+        env:
+          - name: TZ
+            value: Europe/Moscow
+          - name: KEYS_FILE
+            value: /mnt/vault_data/keys
+          - name: SKIP_CHOWN
+            value: "true"
+          - name: SKIP_SETCAP
+            value: "true"
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: VAULT_RAFT_NODE_ID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: VAULT_ADDR
+            # value: "http://127.0.0.1:8200"
+            value: "http://$(VAULT_RAFT_NODE_ID).vault-svc.vault.svc:8200"
+          - name: VAULT_API_ADDR
+            # value: "http://127.0.0.1:8200"
+            value: "http://$(VAULT_RAFT_NODE_ID).vault-svc.vault.svc:8200"
+          - name: VAULT_CLUSTER_ADDR
+            # value: "http://127.0.0.1:8201"
+            value: "http://$(VAULT_RAFT_NODE_ID).vault-svc.vault.svc:8201"
+          - name: HOME
+            value: /home/vault
+        livenessProbe:
+          httpGet:
+            path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+            port: 8200
+            scheme: HTTP
+          initialDelaySeconds: 25
+          periodSeconds: 10
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -ec
+              - |
+                vault status -tls-skip-verify
+          initialDelaySeconds: 25
+          periodSeconds: 10
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 256m
+            memory: 128Mi
+          limits:
+            cpu: 256m
+            memory: 128Mi
+        volumeMounts:
+          - name: data
+            mountPath: /mnt/vault_data
+          - name: config
+            mountPath: /vault/config
+          - name: scripts
+            mountPath: /vault/scripts
+      volumes:
+        - name: config
+          configMap:
+            name: vault-cm
+            items:
+              - key: config.hcl
+                path: config.hcl
+        - name: scripts
+          configMap:
+            name: vault-cm
+            items:
+              - key: init.sh
+                path: init.sh
+              - key: unseal.sh
+                path: unseal.sh
+              - key: create_users.sh
+                path: create_users.sh
+              - key: create_secrets.sh
+                path: create_secrets.sh
+              - key: kubernetes_setup_auth_method.sh
+                path: setup_auth_method.sh
+            defaultMode: 0110
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: local-storage
+        accessModes: [ ReadWriteOnce ]
+        resources:
+          requests:
+            storage: 256Mi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-cm
+  namespace: vault
+data:
+  config.hcl: |
+    # strange behavior with env var. should be commented
+    # cluster_addr  = "http://127.0.0.1:8201"
+    # api_addr      = "http://127.0.0.1:8200"
+    ############################################################################
+
+    disable_mlock = true
+    ui            = true
+
+    log_level     = "info" # debug
+    # log_format    = "json"
+
+    # for opening ports at host (netstat -tulpen)
+    listener "tcp" {
+      address         = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+      tls_disable     = true
+    }
+
+    storage "raft" {
+      # PVC VOLUME FOR VAULT TO KEEP ALL VAULT DATA PERSISTENT
+      # path            = "/tmp"
+      path            = "/mnt/vault_data"
+      tls_skip_verify = "true"
+
+      # HA
+      # retry_join {
+      #   leader_api_addr = "http://vault-0.vault-svc.vault.svc:8200"
+      # }
+
+      # retry_join {
+      #   leader_api_addr = "http://vault-1.vault-svc.vault.svc:8200"
+      # }
+
+      # retry_join {
+      #  leader_api_addr = "http://vault-2.vault-svc.vault.svc:8200"
+      # }
+    }
+
+  init.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> INIT >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+
+    if [ "$HOSTNAME" == "vault-1" ] || [ "$HOSTNAME" == "vault-2" ]; then
+      echo "Skipping INIT (vault-1)."
+      exit 0
+    fi
+
+    if [ -f $KEYS_FILE ]; then
+      echo "Vault already initialized."
+    else
+      sleep 10
+      echo "Vault initialization..."
+
+      while true
+      do
+        vault operator init -key-shares=6 -key-threshold=3 >> "${KEYS_FILE}_orig" 2>&1
+        ret_code=$?
+        echo "$ret_code" >> /tmp/initlog
+        if [ $ret_code -eq 0 ]; then
+          break
+        fi
+      done
+
+      grep 'Unseal Key\|Initial Root Token' "${KEYS_FILE}_orig" | awk '{print $NF}' > $KEYS_FILE 2>&1
+      echo "Vault initialization done. Keys saved to $KEYS_FILE"
+    fi
+
+  unseal.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNSEAL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+    if [ "$HOSTNAME" == "vault-1" ] || [ "$HOSTNAME" == "vault-2" ]; then
+      is_sealed="true"
+      until [ -f "/mnt/vault_data/keys" ] && [ "$is_sealed" == "false" ]; do
+        sleep 2 && echo "sealed"
+        is_sealed="$(vault status -address=http://vault-0.vault-svc.vault.svc:8200 | grep -i 'sealed' | awk '{print $2}')"
+      done
+    fi
+
+    vault_sealed_status=$( vault status | grep -i 'sealed' | awk '{print $2}' )
+    echo "vault_sealed_status: $vault_sealed_status"
+    if [ "$vault_sealed_status" == "true" ]; then
+      echo "Vault unsealing...."
+      vault operator unseal $(sed -n '1p' $KEYS_FILE)
+      vault operator unseal $(sed -n '2p' $KEYS_FILE)
+      vault operator unseal $(sed -n '3p' $KEYS_FILE)
+    else
+      echo "Vault already unsealed."
+    fi
+
+  create_users: |
+    #!/bin/sh
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    vault auth enable userpass
+
+    # create/update policy. full access
+    vault policy write admin-policy - <<EOF
+    path "secrets/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "sys/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "auth/token/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "auth/userpass/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    EOF
+
+    vault write auth/userpass/users/admin \
+          password="admin" \
+          policies=admin-policy
+
+    vault write auth/userpass/users/admin \
+          default_lease_ttl=1h \
+          max_lease_ttl=1h
+
+    vault policy write dev-policy - <<EOF
+    path "secrets/dev/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    EOF
+
+    vault write auth/userpass/users/dev \
+          password="dev" \
+          policies=dev-policy
+
+    vault write auth/userpass/users/dev \
+          default_lease_ttl=1h \
+          max_lease_ttl=1h
+
+  create_secrets.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> CREATE_KV >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    # for access to vault
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    # if [ "$HOSTNAME" == "vault-1" ]; then
+    #   echo "Skipping CREATE_KV (vault-1)."
+    #   exit 0
+    # fi
+
+    if vault secrets list | grep -q "secrets/prod/echo-server/echo-server/"; then
+      echo "KV already exists."
+      exit 0
+    fi
+
+    # create secret engine secrets/prod/<NS>/<service_name>
+    vault secrets enable -path=secrets/prod/echo-server/echo-server kv-v2
+
+    # <path_to_secret>/config <key1>=<value1> <key2>=<value2>
+    vault kv put secrets/prod/echo-server/echo-server/config username=secret1 password=secret2
+
+    # create policy and apply to secret. Part /data/ is important!!
+    vault policy write read-secret - <<EOF
+    path "secrets/prod/echo-server/echo-server/data/config" {
+      capabilities = [ "read" ]
+    }
+    EOF
+
+    # check policy
+    vault policy read read-secret
+
+    # check secret
+    vault kv get secrets/prod/echo-server/echo-server/config
+
+    # some commands
+    # vault kv get -version 1 secrets/prod/echo-server/echo-server/config
+    # vault kv delete secrets/prod/echo-server/echo-server/config
+
+  kubernetes_setup_auth_method.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>> SETUP_AUTH >>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    # for access to vault
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    # if [ "$HOSTNAME" == "vault-1" ]; then
+    #   echo "Skipping SETUP_AUTH (vault-1)."
+    #   exit 0
+    # fi
+
+    if vault auth list | grep -q "kubernetes/"; then
+      echo "Kubernetes auth already exists."
+      exit 0
+    fi
+
+    # activate auth method
+    vault auth enable kubernetes
+
+    # check methods
+    vault auth list
+
+    # configure token reviewer for serviceaccount
+    vault write auth/kubernetes/config \
+                kubernetes_host="https://kubernetes.default.svc:443" \
+                token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                issuer="https://kubernetes.default.svc.cluster.dev"
+    vault read auth/kubernetes/config
+
+    # get bound_service_account_names and bound_service_account_namespaces from SA
+    vault write auth/kubernetes/role/vault-auth \
+                bound_service_account_names=vault-auth \
+                bound_service_account_namespaces=echo-server \
+                audience="https://kubernetes.default.svc.cluster.dev" \
+                policies=read-secret \
+                ttl=1m
+
+    vault kv list auth/kubernetes/role/

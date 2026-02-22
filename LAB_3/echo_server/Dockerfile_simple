@@ -1,5 +1,5 @@
-# FROM alpine:3.21
-FROM gcr.io/distroless/static:nonroot
+FROM alpine:3.21
+# FROM gcr.io/distroless/static:nonroot
 
 COPY build/echo_server /usr/local/bin/echo_server
 

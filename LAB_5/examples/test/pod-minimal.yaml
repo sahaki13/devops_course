@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gcr-pod
+spec:
+  containers:
+    - name: gcr
+      image: gcr.io/google-samples/hello-app:1.0
+      ports:
+        - containerPort: 8080
+          name: gcr-port

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: echo-server-pod
+  labels:
+    app: echo-server
+spec:
+  imagePullSecrets:
+    - name: <img-pull-secret> #
+  containers:
+    - name: echo-server
+      image: <image> #
+      imagePullPolicy: IfNotPresent
+      resources:
+        requests:
+          memory: 25Mi
+          cpu: 100m
+        limits:
+          memory: 25Mi
+          cpu: 100m
+      env:
+        - name: TZ
+          value: Europe/Moscow

@@ -1,0 +1,136 @@
+# namespace
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  labels:
+    name: vault
+
+# job
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prepare-vault-dir
+  namespace: vault
+spec:
+  ttlSecondsAfterFinished: 5 # remove job after N sec
+  template:
+    spec:
+      containers:
+        - name: bootstrap
+          image: docker.io/library/busybox:1.37.0-musl
+          securityContext:
+            runAsUser:  0
+            runAsGroup: 0
+          command: [ "/bin/sh", "-c" ]
+          args:
+            - |
+              if [ ! -d /mnt/vault_data ]; then
+                mkdir -pv /mnt/vault_data
+                chown --verbose -R 100:1000 "/mnt/vault_data"
+                echo -e "[ INFO ] Directory created!\nDONE"
+              else
+                echo "[ INFO ] directory vault_data already exists"
+              fi
+          volumeMounts:
+            - name: host-mnt
+              mountPath: /mnt
+      restartPolicy: Never
+      # Привязываем Job к конкретной ноде, где будет располагаться PV
+      nodeSelector:
+        kubernetes.io/hostname: worker-0
+      volumes:
+        - name: host-mnt
+          hostPath:
+            path: /mnt # Монтируем корень /mnt с хоста в контейнер
+            type: Directory
+  backoffLimit: 1
+
+# storageclass
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+
+# pv
+--- # Vault raft 1
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vault-pv-0
+spec:
+  capacity:
+    storage: 512Mi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: vault
+    name: data-vault-0
+  accessModes: [ ReadWriteOnce ]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /mnt/vault_data # указываем путь до хранения данных на vm filesystem
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - 'worker-0' # указываем свой hostname для 1 рабочего узла
+# --- # Vault raft 2
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: vault-pv-1
+# spec:
+#   capacity:
+#     storage: 512Mi
+#   volumeMode: Filesystem
+#   claimRef:
+#     namespace: vault
+#     name: data-vault-1
+#   accessModes: [ ReadWriteOnce ]
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: local-storage
+#   local:
+#     path: /mnt/vault_data
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: kubernetes.io/hostname
+#               operator: In
+#               values:
+#                 - 'worker-1' # указываем свой hostname для 2 рабочего узла
+
+# --- # Vault raft 3
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: vault-pv-2
+# spec:
+#   capacity:
+#     storage: 512Mi
+#   volumeMode: Filesystem
+#   claimRef:
+#     namespace: vault
+#     name: data-vault-2
+#   accessModes: [ ReadWriteOnce ]
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: local-storage
+#   local:
+#     path: /mnt/vault_data
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: kubernetes.io/hostname
+#               operator: In
+#               values:
+#                 - 'worker-2' # указываем свой hostname для 3 рабочего узла

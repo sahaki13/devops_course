@@ -1,17 +1,18 @@
 package main
 
 import (
-    "fmt"
-    "io"
-    "net/http"
-    "os"
-    "strings"
-    "time"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 var (
     buildDate string
     version   string
+    hostname  string
 )
 
 func healthcheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -27,8 +28,15 @@ func healthcheckHandler(w http.ResponseWriter, r *http.Request) {
 func echoHandler(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
     case http.MethodGet:
+        response := fmt.Sprintf(
+            "echo-service\nVersion: %s\nBuldDate: %s\nHostname: %s\nTimeNow: %s\n",
+            version,
+            buildDate,
+            hostname,
+            time.Now().Format(time.RFC3339))
         w.WriteHeader(http.StatusOK)
-        fmt.Println("GET /echo:", time.Now().Format(time.RFC3339))
+        w.Write([]byte(response))
+        fmt.Printf("GET /echo | Host: %s | Time: %s\n", hostname, time.Now().Format(time.RFC3339))
     case http.MethodPost:
         body, err := io.ReadAll(r.Body)
         if err != nil {
@@ -58,8 +66,11 @@ func echoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    fmt.Printf("Running with UID: %d\n", os.Getuid())
+    hostname, _ = os.Hostname()
+
     fmt.Printf("buildDate: %s\nVersion: %s\n\n", buildDate, version)
+    fmt.Printf("Running with UID: %d\n", os.Getuid())
+    fmt.Printf("Hostname: %s\n", hostname)
 
     appPort := os.Getenv("APP_PORT")
     if appPort == "" {

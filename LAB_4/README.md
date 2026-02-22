@@ -86,7 +86,7 @@ $ source ~/.bashrc
 ![k8s_log](./docs/k8s_log.png "k8s_log")
 
 
-7) Добавить imagePullSecrets для своего registry
+7) Добавить imagePullSecrets для своего private registry
 
 ```
 # запустить сценарий, предварительно изменив в нем переменные если нужно
@@ -118,6 +118,28 @@ $ k apply -f ../kube_files/daemonset-app.yaml
 ```
 $ k delete -f ../kube_files/daemonset-app.yaml
 ```
+
+10) Запустить metallb и ingress controller
+
+```
+$ k apply -f ./deploy_scripts/roles/k8s/files/ingress-nginx.yaml
+$ ./deploy_scripts/scripts/setup_metallb.sh
+
+$ kubectl get pods -n metallb-system
+$ kubectl get ipaddresspools.metallb.io -n metallb-system
+$ kubectl get l2advertisements.metallb.io -n metallb-system
+$ kubectl describe svc ingress-nginx-controller -n ingress-nginx
+
+# EXTERNAL-IP не должен быть pending
+$ kubectl get svc -A | grep LoadBalancer
+```
+
+   После проверить что metallb развернулся (extenal-ip должен быть присвоен из пула адресов)
+![metallb_check](./docs/metallb_check.png "metallb_check")
+
+   Перейти по адресу http://192.168.99.200/ и проверить что nginx запустился и работает
+![nginx_check](./docs/nginx_check.png "nginx_check")
+
 
 ## Ошибки при установке
 

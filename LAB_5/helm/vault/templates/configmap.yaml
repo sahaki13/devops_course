@@ -1,0 +1,173 @@
+{{ include "vault.checkNamespace" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "vault.fullname" . }}-cm"
+  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+data:
+  config.hcl: |
+    disable_mlock = true
+    ui            = {{ .Values.services.ui.enabled }}
+    log_level     = "debug" # info
+    listener "tcp" {
+      address         = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+      tls_disable     = true
+    }
+    storage "raft" {
+      path            = "/mnt/vault_data"
+      tls_skip_verify = "true"
+    }
+
+  init.sh: |
+    #!/bin/sh
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> INIT >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+    if [ "$HOSTNAME" != "vault-0" ]; then
+      echo "Skipping INIT (not vault-0)."
+      exit 0
+    fi
+    if [ -f "$KEYS_FILE" ]; then
+      echo "Vault already initialized."
+    else
+      sleep 10
+      echo "Vault initialization..."
+      while true
+      do
+        vault operator init -key-shares=6 -key-threshold=3 >> "${KEYS_FILE}_orig" 2>&1
+        ret_code=$?
+        if [ $ret_code -eq 0 ]; then
+          break
+        fi
+      done
+      grep 'Unseal Key\|Initial Root Token' "${KEYS_FILE}_orig" | awk '{print $NF}' > $KEYS_FILE 2>&1
+      echo "Vault initialization done. Keys saved to $KEYS_FILE"
+    fi
+
+  unseal.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNSEAL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+
+    if [ "$HOSTNAME" != "vault-0" ]; then
+      is_sealed="true"
+      until [ -f "$KEYS_FILE" ] && [ "$is_sealed" == "false" ]; do
+        sleep 2 && echo "sealed"
+        is_sealed="$(vault status -address=http://vault-0.vault-svc.vault.svc:8200 | grep -i 'sealed' | awk '{print $2}')"
+      done
+    fi
+
+    vault_sealed_status=$( vault status | grep -i 'sealed' | awk '{print $2}' )
+    echo "vault_sealed_status: $vault_sealed_status"
+    if [ "$vault_sealed_status" == "true" ]; then
+      echo "Vault unsealing...."
+      vault operator unseal $(sed -n '1p' $KEYS_FILE)
+      vault operator unseal $(sed -n '2p' $KEYS_FILE)
+      vault operator unseal $(sed -n '3p' $KEYS_FILE)
+    else
+      echo "Vault already unsealed."
+    fi
+
+  create_users.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>> CREATE_USERS >>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    vault auth enable userpass
+
+    vault policy write admin-policy - <<EOF
+    path "secrets/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "sys/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "auth/token/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    path "auth/userpass/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    EOF
+    vault write auth/userpass/users/admin \
+          password="admin" \
+          policies=admin-policy
+    vault write auth/userpass/users/admin \
+          default_lease_ttl=1h \
+          max_lease_ttl=1h
+
+    vault policy write dev-policy - <<EOF
+    path "secrets/dev/*" {
+      capabilities = ["create", "read", "update", "delete", "list", "patch"]
+    }
+    EOF
+    vault write auth/userpass/users/dev \
+          password="dev" \
+          policies=dev-policy
+    vault write auth/userpass/users/dev \
+          default_lease_ttl=1h \
+          max_lease_ttl=1h
+
+  create_secrets.sh: |
+    #!/bin/sh
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> CREATE_KV >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    environments="prod dev sandbox"
+    for env in $environments; do
+        echo "--- Create secrets: $env ---"
+        vault secrets enable -path=secrets/$env/echo-server kv-v2 || true
+
+        vault kv put secrets/$env/echo-server/config \
+            "${env}secret1=tpl1" \
+            "${env}secret2=tpl2"
+
+        vault policy write read-secret-$env - <<EOF
+    path "secrets/$env/echo-server/data/config" {
+    capabilities = [ "read" ]
+    }
+    EOF
+
+        echo "Check policy $env:"
+        vault policy read read-secret-$env
+
+        echo "Check secret $env:"
+        vault kv get secrets/$env/echo-server/config
+        echo "--------------------------"
+    done
+
+  kubernetes_update_auth_method.sh: |
+    #!/bin/sh
+
+    set -e
+
+    echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>> UPDATE_AUTH >>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    export VAULT_ADDR=http://127.0.0.1:8200
+    export VAULT_TOKEN=$(sed -n '7p' $KEYS_FILE)
+
+    if vault auth list | grep -q "kubernetes/"; then
+      echo "Kubernetes auth method already exists."
+    else
+        vault auth enable kubernetes
+        vault auth list
+    fi
+
+    vault write auth/kubernetes/config \
+                kubernetes_host="https://kubernetes.default.svc:443" \
+                token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                issuer="https://kubernetes.default.svc.cluster.dev"
+    # vault read auth/kubernetes/config
+
+    vault write auth/kubernetes/role/vault-auth \
+                bound_service_account_names=vault-auth \
+                bound_service_account_namespaces=sandbox,dev,prod \
+                audience="https://kubernetes.default.svc.cluster.dev" \
+                policies=read-secret-sandbox,read-secret-dev,read-secret-prod \
+                ttl=1m
+    # vault kv list auth/kubernetes/role/
