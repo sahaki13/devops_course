@@ -84,7 +84,7 @@ $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 ```
 
 3) Использовать helm для запуска сервиса (пример чарта расположен в ./helm/ms).
-   Отредактировать values для своего сервиса и запустить.
+   Отредактировать values для своего сервиса и запустить или сделать свой чарт с нуля.
 
 ```
 # Поправить values в чарте ./helm/ms/values.yaml
@@ -92,8 +92,11 @@ $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 # Добавить к себе на хост запись в /etc/hosts (<service_name> поменять на свое имя сервиса)
 192.168.99.200 <service_name>.test.local
 
+# Создание структуры шаблона
+$ helm create echo-server
+
 # Проверка шаблона с подставленными values (для отладки шаблонизатора)
-$ helm template -n vault vault ./helm/ms/
+$ helm template -n dev echo-server ./helm/ms/
 
 # Установка чарта
 $ helm install -n dev echo-server ./helm/ms
@@ -108,6 +111,41 @@ $ helm upgrade -n dev echo-server ./helm/ms --set-string ms.tag=2.3.0,ms.rs=5
 $ helm uninstall -n dev echo-server
 ```
 
+## Полезные команды k8s
+```
+# Показать манифест без запуска
+k apply -k <path_to_manifest> --dry-run=client -o yaml
+
+# Проброс порта
+k port-forward svc/<service_name> -n <ns_name> <external_port>:<internal_port>
+
+# Следить за событиями во всех ns кластера
+k get events -A --sort-by='.lastTimestamp' -w
+
+# Вывести потребляемые ресурсы
+k top pod -n <ns_name> --sort-by=memory
+
+# Посмотреть ресурсы
+k get all,cm,secret,ing,pvc -n <ns_name>
+
+# Показать все уникальные образы, которые запущены на данный момент
+k get pods -A -o jsonpath='{.items[*].spec.containers[*].image}' | tr ' ' '\n' | sort | uniq
+
+# Сравнить локальный ресурс (например чтобы проверить изменения) с тем который запущен в кластере
+k diff -n <ns_name> -f ./<resource_file>
+
+# Сохранить измененный манифест в файл, чтобы можно было сравнить с оригинальным
+k kustomize ./<path_to_kustomize> > install.yaml
+
+# Зайти в init-container
+k exec -it -n <ns_name> pods/<pod_name> -c <init_container_name> -- /bin/sh
+
+# Посмотреть логи init-container
+k logs -f -n <ns_name> pods/<pod_name> -c <init_container_name>
+
+# Запуск pod для отладки
+k run dbg-pod --rm -it --restart=Never --image=docker.io/pnnlmiscscripts/curl-jq:1.6-10 -- /bin/bash
+```
 
 ## При показе выполненного задания
    * Запустить deployment и сделать запросы к сервису

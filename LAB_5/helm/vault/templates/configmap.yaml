@@ -1,4 +1,3 @@
-{{ include "vault.checkNamespace" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

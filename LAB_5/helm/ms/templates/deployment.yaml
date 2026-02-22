@@ -1,8 +1,12 @@
+{{- include "ms.validateAll" . -}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.ms.ns }}
-  namespace: {{ .Values.ms.ns }}
+  name: {{ include "ms.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.ms.rs }}
   strategy:
@@ -12,15 +16,18 @@ spec:
       maxSurge: {{ .Values.ms.update.maxSurge }}
   selector:
     matchLabels:
-      app: {{ .Values.ms.name }}
+      {{- include "ms.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ .Values.ms.name }}
+        {{- include "ms.selectorLabels" . | nindent 8 }}
+        {{- with .Values.ms.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false # prevent mount /run/**/secrets
-      {{- if .Values.ms.vault_secrets.enabled }}
-      serviceAccountName: {{ .Values.ms.vault_secrets.role }} # SA для чтения из vault
+      {{- if .Values.ms.vaultSecrets.enabled }}
+      serviceAccountName: {{ .Values.ms.vaultSecrets.role }} # SA для чтения из vault
       {{- end }}
       {{- with .Values.ms.imagePullSecrets }}
       imagePullSecrets:
@@ -33,8 +40,8 @@ spec:
         fsGroup: 65534
       {{- include "myhlp.vault_secrets_init_container" . | nindent 6 -}}
       containers:
-        - name: {{ .Values.ms.name }}
-          image: "{{ .Values.ms.repository }}:{{ .Values.ms.tag }}"
+        - name: {{ include "ms.fullname" . }}
+          image: "{{ .Values.ms.repository }}:{{ .Values.ms.tag }}@sha256:{{ .Values.ms.digest }}"
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

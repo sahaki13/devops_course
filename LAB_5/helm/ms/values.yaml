@@ -1,17 +1,19 @@
 ################################################################################
 # custom values
+nameOverride: ""
+fullnameOverride: "echo-server"
 
 ms:
   environment: dev
   repository: 192.168.99.100:5050/root/echo-server
   tag: 2.3.1
-  name: echo-server
+  digest: 898133473002c20d49ccaf23098cbbdc92a6dd4f6ef0c6506318d9fb7fcba846
   port: 3000
-  ns: dev
   rs: 3
   update:
     maxUnavailable: 1 # Количество обновляемых подов в один момент
     maxSurge: 0 # Запрет на создание реплик выше того что в rs
+  podLabels: {}
 
   imagePullSecrets:
     - name: gitlab-insecure-registry
@@ -45,10 +47,16 @@ ms:
     - name: DOTENV_PATH
       value: /empty/.env
 
-  vault_secrets:
+  initContainer:
+    repository: docker.io/pnnlmiscscripts/curl-jq
+    tag: 1.6-15
+    # docker inspect --format='{{index .RepoDigests 0}}' docker.io/pnnlmiscscripts/curl-jq:1.6-15
+    digest: e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1
+    isDebug: false
+
+  vaultSecrets:
     enabled: true # true - чтобы забрать секреты из vault
     role: vault-auth
-    debug_init_container: false
 
 service:
   type: ClusterIP # NodePort or ClusterIP

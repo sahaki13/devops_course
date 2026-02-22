@@ -9,9 +9,9 @@ spec:
   serviceAccountName: vault-auth # sa должен быть в ns где pod или sa не будет виден
   # automountServiceAccountToken: false
   securityContext: # для пода
-    runAsUser:  1000
-    runAsGroup: 1000
-    fsGroup:    1000
+    runAsUser:  65534
+    runAsGroup: 65534
+    fsGroup:    65534
     sysctls:    []
   terminationGracePeriodSeconds: 0 # force delete
   containers:

@@ -60,9 +60,3 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
-
-{{- define "vault.checkNamespace" -}}
-  {{- if eq .Release.Namespace "default" -}}
-    {{- fail "\n\n[ERROR] Установка в namespace 'default' запрещена!\n" -}}
-  {{- end -}}
-{{- end -}}

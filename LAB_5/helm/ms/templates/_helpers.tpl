@@ -1,68 +1,63 @@
-{{- define "myhlp.vault_secrets_init_container" -}}
-{{- if and .Values.ms.vault_secrets.enabled -}}
-initContainers:
-  - name: vault-secrets-init
-    image: docker.io/pnnlmiscscripts/curl-jq:1.6-10
-    securityContext:
-      capabilities:
-        drop: [ ALL ]
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser:  1000
-      runAsGroup: 1000
-    command: [ "/bin/bash", "-c" ]
-    args:
-      - |
-        set -e
-        {{- if .Values.ms.vault_secrets.debug_init_container }}
-        sleep 99999
-        {{- end }}
-        secret_path="secrets/{{ .Values.ms.environment }}/{{ .Values.ms.name }}/data/config"
-        vault_addr="http://vault-svc.vault.svc:8200" && \
-        role="{{ .Values.ms.vault_secrets.role }}" && \
-        sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token) && \
-        v_t=$(curl -f -s -X POST -d "{\"jwt\":\"$sa_t\",\"role\":\"$role\"}" $vault_addr/v1/auth/kubernetes/login | jq -r '.auth.client_token')
-        if [ "$v_t" == "null" ] || [ "$v_t" == "" ]; then echo "Auth failed"; exit 1; fi
-        curl -s -H "X-Vault-Token: $v_t" $vault_addr/v1/$secret_path | \
-        jq -r '.data.data | keys[] as $k | "\($k)=\(.[$k])"' > /empty/.env
-        echo "secrets obtained"
-    volumeMounts:
-      - name: dotenv
-        mountPath: /empty
-      - name: sa-token # override automountServiceAccountToken to obtain token
-        mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        readOnly: true
-    resources:
-      requests:
-        memory: 20Mi
-        cpu: 100m
-      limits:
-        memory: 20Mi
-        cpu: 100m
-{{ end }}
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "ms.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "myhlp.dotenv_file_mount" -}}
-{{- if .Values.ms.vault_secrets.enabled -}}
-- name: dotenv
-  mountPath: /empty/.env
-  subPath: .env
-{{ end }}
+{{/*
+Create a default fully qualified app name.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+If release name contains chart name it will be used as a full name.
+*/}}
+{{- define "ms.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
 {{- end }}
 
-{{- define "myhlp.volumes" -}}
-{{- if .Values.ms.vault_secrets.enabled -}}
-- name: dotenv
-  emptyDir:
-    medium: "Memory"
-    sizeLimit: 1Mi
-- name: sa-token
-  projected:
-    defaultMode: 0444
-    sources:
-    - serviceAccountToken:
-        expirationSeconds: 700
-        path: token
-{{ end }}
+{{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "ms.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+
+{{/*
+Common labels
+*/}}
+{{- define "ms.labels" -}}
+helm.sh/chart: {{ include "ms.chart" . }}
+{{ include "ms.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "ms.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ms.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "ms.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "ms.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
 {{- end }}

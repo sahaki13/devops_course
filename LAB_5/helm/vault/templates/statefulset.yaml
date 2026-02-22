@@ -1,4 +1,5 @@
 {{ include "vault.checkNamespace" . }}
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

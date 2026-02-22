@@ -1,4 +1,3 @@
-{{ include "vault.checkNamespace" . }}
 # Headless Service
 apiVersion: v1
 kind: Service
