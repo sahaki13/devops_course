@@ -29,7 +29,7 @@ build:
     # apk update && apk add --no-cache --quiet tree
 
     # mkdir ./build && go build -ldflags="-s -w" -o ./build/echo_server ./src/main.go
-    ./build.sh
+    ./scripts/build.sh
 
   artifacts:
     paths:
@@ -51,7 +51,7 @@ lint_test:
   needs: []
   stage: test
   script:
-    - "echo 'STUB. lint SUCCESS' > ./linter_results.log"
+    - ./scripts/lint.sh || true
   artifacts:
     paths:
       - ./linter_results.log

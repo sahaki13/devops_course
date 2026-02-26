@@ -30,6 +30,7 @@
 $ su -  # сменить пользователя ( root )
 
 # apt install -y qemu-system-x86 \
+                 virtiofsd \
                  libvirt-daemon-system \
                  libvirt-clients \
                  bridge-utils \
@@ -147,6 +148,21 @@ shared_dir /home/debian/work virtiofs defaults 0 0 # добавить запис
 
 # systemctl daemon-reload
 # mount -a # команда чтобы примонтировать все что в /etc/fstab
+```
+
+## Ошибки при установке
+
+permission denied по достижении этапа развертывания доменов.
+
+Нужно отключить apparmor.service полностью или добавить в исключения libvirt
+
+* [Apparmor ](https://itsfoss.gitlab.io/post/how-to-enable-or-disable-apparmor-on-ubuntu-2404-2204-or-2004/)
+
+```
+## Отключение apparmor
+# systemctl disable --now apparmor.service
+# systemctl mask apparmor.service
+# reboot
 ```
 
 ## При показе выполненного задания

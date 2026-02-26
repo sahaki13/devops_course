@@ -1,5 +1,5 @@
 deploy_scripts/.ansible
 **/secrets.yml
-docs/info.txt
+docs/info*
 docs/*.docx
 docs/*.~lock*

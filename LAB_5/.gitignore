@@ -1,3 +1,4 @@
 **/README.txt
 docs/*.docx
 docs/*.pdf
+helm/ms/.git*
