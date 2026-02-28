@@ -1,4 +1,4 @@
-gitlab/.env
+gitlab/.env*
 data
 runner_cfg
 echo_server/.git

@@ -40,6 +40,8 @@ unit_test:
   <<: *ci_vars
   needs: []
   stage: test
+  needs:
+    - build
   script:
     - "echo 'STUB. unit-tests SUCCESS' > ./unit_tests_results.log"
   artifacts:
@@ -60,6 +62,7 @@ dockerize:
   # образ не указываем, посольку по умолчанию при регистрации runner уже
   # указали базовый образ, поэтому будет использоваться он.
   # Выполняем сборку образа в докер окружении т.н. dind
+  # Или выполняем копирование собранного (на этапе build) исполняемого файла/библиотек
   only:
     changes:
       - version.json
@@ -68,9 +71,6 @@ dockerize:
     EXTERNAL_REGISTRY_ADDRESS: 192.168.99.100:5050 # чтобы не было проблем с DNS
   stage: dockerize
   script: |
-    ls -la
-    # env
-
     export SERVICE_VERSION=$(grep 'version' ./version.json | cut -d '"' -f4 | tr '\n' '\0')
     # echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
     echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $EXTERNAL_REGISTRY_ADDRESS --password-stdin

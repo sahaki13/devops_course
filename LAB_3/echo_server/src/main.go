@@ -29,11 +29,12 @@ func echoHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		response := fmt.Sprintf(
-			"echo-service\nVersion: %s\nBuldDate: %s\nHostname: %s\nTimeNow: %s\n",
+			"echo-service\nVersion: %s\nBuldDate: %s\nHostname: %s\nTimeNow: %s\nUID: %s\n",
 			version,
 			buildDate,
 			hostname,
-			time.Now().Format(time.RFC3339))
+			time.Now().Format(time.RFC3339),
+			os.Getuid())
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(response))
 		fmt.Printf("GET /echo | Host: %s | Time: %s\n", hostname, time.Now().Format(time.RFC3339))

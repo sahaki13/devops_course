@@ -47,6 +47,26 @@ $ docker compose up -d gitlab
 
 4) Запустить pipeline в Gitlab, проверить что все этапы завершились без ошибок и образ появился в registry.
 
+## Ошибки
+
+Если на этапе `dockerize` при выполнении `docker login` возникает ошибка
+
+```
+Error response from daemon: Get "http://192.168.99.100:5050/v2/": Get "http://gitlab:80/jwt/auth?account=gitlab-ci-token&client_id=docker&offline_token=true&service=container_registry": dial tcp: lookup gitlab: no such host
+```
+
+тогда добавить строку `registry['token_realm'] = "192.168.99.100:80"` в конец файла ./cfg/gitlab.rb
+
+Затем перезапустить контейнер и применить конфигурацию
+
+```
+$ docker compose down gitlab
+$ docker compose up -d gitlab
+
+# дождаться запуска gitlab и выполнить reconfigure
+$ docker exec gitlab gitlab-ctl reconfigure
+```
+
 ## При показе выполненного задания
    * Продемонстрировать успешное развертывание **Gitlab** + **runner**
    * Составить **.gitlab-ci.yml** манифест. Собрать приложение несколько раз с разными тегами (нужно внести какие-то изменения в ваше приложение), запустить пайплайн и дождаться окончания сборки

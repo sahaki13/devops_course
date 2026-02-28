@@ -65,6 +65,9 @@
 
 ##! **Configuration settings below are optional.**
 
+# runners receives 409 conflict on each attempt when session_server.listen_address
+# Admin Area → Settings → Network → Outbound requests
+gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true
 
 ################################################################################
 ################################################################################
@@ -2580,6 +2583,9 @@ gitlab_exporter['enable'] = false
 
 # To completely disable prometheus, and all of it's exporters, set to false
 prometheus_monitoring['enable'] = false
+
+# Grafana
+grafana['enable'] = false
 
 ################################################################################
 ## Gitaly

@@ -53,7 +53,7 @@ services:
       retries: 30
 
   runner:
-    image: gitlab/gitlab-runner:v18.8.0
+    image: gitlab/gitlab-runner:alpine-v18.8.0
     container_name: runner_build_srv_1
     restart: always
     # user: gitlab-runner
@@ -70,6 +70,8 @@ services:
       - ./runner_cfg/:/etc/gitlab-runner/
       - ./scripts/register_runner.sh:/opt/register_runner.sh:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8093:8093"
     entrypoint: |
       /bin/bash -ec /opt/register_runner.sh
     networks:

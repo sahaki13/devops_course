@@ -7,6 +7,14 @@ if $IS_DEBUG; then
   sleep 999999
 fi
 
+CONFIG_FILE="/etc/gitlab-runner/config.toml"
+SESSION_SERVER_BLOCK='''
+[session_server]
+  listen_address = "runner_build_srv_1:8093"
+  session_timeout = 1800
+  publish_address = "runner_build_srv_1:8093"
+'''
+
 if $IS_REGISTER_RUNNER; then
 
   payload=`curl --silent -XPOST \
@@ -34,6 +42,16 @@ if $IS_REGISTER_RUNNER; then
     --docker-pull-policy  if-not-present \
     --docker-image        $DIND_IMAGE \
     --docker-network-mode ${CURRENT_DIR}_gitlab
+
+  if grep -q "^\[session_server\]" "$CONFIG_FILE"; then
+    awk '
+      /^\[session_server\]/ { skip=1; next }
+      /^\[/ { skip=0 }
+      !skip { print }
+    ' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+
+    echo "$SESSION_SERVER_BLOCK" >> "$CONFIG_FILE"
+  fi
 fi
 
 # docker inspect --format='{{.Config.Entrypoint}}' gitlab/gitlab-runner
