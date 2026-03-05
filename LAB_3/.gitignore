@@ -1,4 +1,6 @@
 gitlab/.env*
 data
 runner_cfg
-echo_server/.git
+application/echo_server/.git
+application/hash_generator/.git
+**/build
