@@ -52,6 +52,8 @@ lint_test:
   <<: *ci_vars
   needs: []
   stage: test
+  needs:
+    - build
   script:
     - ./scripts/lint.sh || true
   artifacts:
@@ -78,7 +80,7 @@ dockerize:
     echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
     echo "SERVICE_VERSION=$SERVICE_VERSION"
 
-    # sleep 99999 # dbg
+    sleep 60 # dbg
 
     echo "COPY ARTIFACT TO DOCKER"
     docker build --provenance=false \

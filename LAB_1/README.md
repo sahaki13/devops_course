@@ -1,6 +1,21 @@
 # ЛАБОРАТОРНАЯ №1. Подготовка рабочего окружения
 
-Требования:
+## Возможные ошибки при выполнении задания
+
+permission denied по достижении этапа развертывания доменов.
+
+Нужно отключить apparmor.service полностью или добавить в исключения libvirt
+
+* [Apparmor ](https://itsfoss.gitlab.io/post/how-to-enable-or-disable-apparmor-on-ubuntu-2404-2204-or-2004/)
+
+```
+## Отключение apparmor
+# systemctl disable --now apparmor.service
+# systemctl mask apparmor.service
+# reboot
+```
+
+## Требования:
 
 1) Подготовить ПК с хостовой OS Linux, поставить второй системой. Использовать дистрибутив Debian stable ( https://www.debian.org/distrib/netinst ).
    Под диск **>=150gb**. Выбрать установку
@@ -148,21 +163,6 @@ shared_dir /home/debian/work virtiofs defaults 0 0 # добавить запис
 
 # systemctl daemon-reload
 # mount -a # команда чтобы примонтировать все что в /etc/fstab
-```
-
-## Ошибки при установке
-
-permission denied по достижении этапа развертывания доменов.
-
-Нужно отключить apparmor.service полностью или добавить в исключения libvirt
-
-* [Apparmor ](https://itsfoss.gitlab.io/post/how-to-enable-or-disable-apparmor-on-ubuntu-2404-2204-or-2004/)
-
-```
-## Отключение apparmor
-# systemctl disable --now apparmor.service
-# systemctl mask apparmor.service
-# reboot
 ```
 
 ## При показе выполненного задания

@@ -68,6 +68,7 @@
 # runners receives 409 conflict on each attempt when session_server.listen_address
 # Admin Area → Settings → Network → Outbound requests
 gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true
+# http://gitlab/api/v4/application/settings # check current settings
 
 ################################################################################
 ################################################################################

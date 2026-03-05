@@ -156,7 +156,7 @@ spec:
                 path: create_users.sh
               - key: create_secrets.sh
                 path: create_secrets.sh
-              - key: kubernetes_update_auth_method.sh
+              - key: k8s_auth_method_upsert.sh
                 path: update_auth_method.sh
             defaultMode: 0110
   volumeClaimTemplates:

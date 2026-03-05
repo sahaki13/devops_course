@@ -4,7 +4,7 @@ set -e
 # Change these vars if needed
 DEFAULT_REGISTRY="http://192.168.99.100:5050"
 DEFAULT_USERNAME="user" # ignored when using a GitLab PAT
-KUBE_NAMESPACE="echo-server"
+KUBE_NAMESPACES=('echo-server' 'dev' 'prod')
 KUBE_RES_NAME="gitlab-insecure-registry"
 
 echo -e "Create Docker registry secret for Kubernetes\n"
@@ -27,20 +27,23 @@ if [ -z "$REGISTRY_PASSWORD" ]; then
 fi
 
 # Create the namespace if it does not exist
-kubectl get namespace "$KUBE_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$KUBE_NAMESPACE"
+for kube_ns in "${KUBE_NAMESPACES[@]}"
+do
+  kubectl get namespace "$kube_ns" >/dev/null 2>&1 || kubectl create namespace "$kube_ns"
 
-# Remove the old secret if it already exist
-kubectl delete secret "$KUBE_RES_NAME" -n "$KUBE_NAMESPACE" >/dev/null 2>&1 || true
+  # Remove the old secret if it already exist
+  kubectl delete secret "$KUBE_RES_NAME" -n "$kube_ns" >/dev/null 2>&1 || true
 
-# Create the new secret
-kubectl create secret docker-registry "$KUBE_RES_NAME" \
-  --namespace="$KUBE_NAMESPACE" \
-  --docker-server="$REGISTRY_SERVER_ADDR" \
-  --docker-username="$REGISTRY_USERNAME" \
-  --docker-password="$REGISTRY_PASSWORD" \
-  --docker-email=""
+  # Create the new secret
+  kubectl create secret docker-registry "$KUBE_RES_NAME" \
+    --namespace="$kube_ns" \
+    --docker-server="$REGISTRY_SERVER_ADDR" \
+    --docker-username="$REGISTRY_USERNAME" \
+    --docker-password="$REGISTRY_PASSWORD" \
+    --docker-email=""
 
-echo -e "\nSecret '$KUBE_RES_NAME' created in namespace '$KUBE_NAMESPACE'.\n"
+  echo -e "\nSecret '$KUBE_RES_NAME' created in namespace '$kube_ns'.\n"
+done
 
-# Check secret content:
+# Check the secret content:
 # k get secrets -n echo-server gitlab-insecure-registry -o json | jq -r '.data[".dockerconfigjson"]' | base64 -d | json_pp
