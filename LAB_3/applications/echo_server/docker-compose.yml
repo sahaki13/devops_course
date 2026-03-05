@@ -1,0 +1,20 @@
+services:
+  echo-server-0:
+    image: echo-server:1.0.0
+    container_name: echo-server-0
+    ports:
+      - 3000:3000
+    environment:
+      APP_PORT: 3000
+      ENV1_TEST: test
+    restart: always
+
+  echo-server-1:
+    image: echo-server:2.0.0
+    container_name: echo-server-1
+    ports:
+      - 3005:3000
+    environment:
+      APP_PORT: 3000
+      ENV1_TEST: test
+    restart: always

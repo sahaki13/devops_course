@@ -1,0 +1,99 @@
+stages:
+  - build
+  - test
+  - dockerize
+
+variables:
+  TZ: "Europe/Moscow"
+
+.ci_vars: &ci_vars
+  image: golang:1.23.5-alpine3.21
+  variables:
+    GIT_STRATEGY: clone
+  only:
+    changes:
+      - version.json
+
+build:
+  <<: *ci_vars
+  stage: build
+  variables:
+    CGO_ENABLED: 0
+    GOOS: linux
+    GOARCH: amd64
+  script: |
+    # some commands
+    pwd
+    ls -la
+    echo $SHELL
+    # apk update && apk add --no-cache --quiet tree
+
+    # mkdir ./build && go build -ldflags="-s -w" -o ./build/echo_server ./src/main.go
+    ./scripts/build.sh
+
+  artifacts:
+    paths:
+    - ./build/echo_server
+
+# SCA, SAST, DAST, UNIT TESTS, LINTERS, DOC GENERATOR, SECURITY + PROPRIETARY CHECKS...
+unit_test:
+  <<: *ci_vars
+  needs: []
+  stage: test
+  needs:
+    - build
+  script:
+    - "echo 'STUB. unit-tests SUCCESS' > ./unit_tests_results.log"
+  artifacts:
+    paths:
+      - ./unit_tests_results.log
+
+lint_test:
+  <<: *ci_vars
+  needs: []
+  stage: test
+  needs:
+    - build
+  script:
+    - ./scripts/lint.sh || true
+  artifacts:
+    paths:
+      - ./linter_results.log
+
+dockerize:
+  # образ не указываем, посольку по умолчанию при регистрации runner уже
+  # указали базовый образ, поэтому будет использоваться он.
+  # Выполняем сборку образа в докер окружении т.н. dind
+  # Или выполняем копирование собранного (на этапе build) исполняемого файла/библиотек
+  only:
+    changes:
+      - version.json
+  variables:
+    DOCKER_BUILDKIT: 1
+    EXTERNAL_REGISTRY_ADDRESS: 192.168.99.100:5050 # чтобы не было проблем с DNS
+  stage: dockerize
+  script: |
+    export SERVICE_VERSION=$(grep 'version' ./version.json | cut -d '"' -f4 | tr '\n' '\0')
+    # echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+    echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $EXTERNAL_REGISTRY_ADDRESS --password-stdin
+
+    echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
+    echo "SERVICE_VERSION=$SERVICE_VERSION"
+
+    sleep 60 # dbg
+
+    echo "COPY ARTIFACT TO DOCKER"
+    docker build --provenance=false \
+                 -f Dockerfile_simple \
+                 -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest \
+                 -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION \
+                 -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION \
+                 .
+
+    # docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION
+    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION
+    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest
+
+    # echo "BUILD AGAIN"
+    # docker build -f Dockerfile_multistage -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION-v2 .
+    # docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION-v2
