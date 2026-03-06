@@ -1,0 +1,72 @@
+################################################################################
+# custom values
+nameOverride: ""
+fullnameOverride: "echo-server"
+
+app:
+  environment: dev
+  image:
+    repository: 192.168.99.100:5050/root/echo-server
+    tag: 2.3.1
+    digest: 898133473002c20d49ccaf23098cbbdc92a6dd4f6ef0c6506318d9fb7fcba846
+  port: 3000
+  replicas: 3
+  update:
+    maxUnavailable: 1 # Количество обновляемых подов в один момент
+    maxSurge: 0 # Запрет на создание реплик выше того что в replicas
+  podLabels: {}
+
+  imagePullSecrets:
+    - name: gitlab-insecure-registry
+
+  probes:
+    enabled: true
+    initialDelaySeconds: 7
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 3
+    liveness:
+      enabled: true
+      path: /healthcheck
+    readiness:
+      enabled: true
+      path: /healthcheck
+  resources:
+    requests:
+      memory: 50Mi
+      cpu: 100m
+    limits:
+      memory: 50Mi
+      cpu: 100m
+  envs:
+    - name: TZ
+      value: Europe/Moscow
+    - name: LOG_HOME
+      value: /log
+    - name: LOG_LEVEL
+      value: info
+    - name: DOTENV_PATH
+      value: /empty/.env
+
+  initContainer:
+    repository: docker.io/pnnlmiscscripts/curl-jq
+    tag: 1.6-15
+    # docker inspect --format='{{index .RepoDigests 0}}' docker.io/pnnlmiscscripts/curl-jq:1.6-15
+    digest: e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1
+    isDebug: false
+
+  vaultSecrets:
+    enabled: true # true - чтобы забрать секреты из vault
+    role: vault-auth
+
+service:
+  type: ClusterIP # NodePort or ClusterIP
+  nodePort: 31001
+
+ingress:
+  enabled: true
+  hosts:
+    - host: echo-server.test.local # совпадает с тем что в /etc/hosts добавили
+      paths:
+        - path: /
+          pathType: Prefix

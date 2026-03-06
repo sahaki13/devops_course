@@ -1,0 +1,89 @@
+{{- include "app.validateAll" . -}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.app.update.maxUnavailable }}
+      maxSurge: {{ .Values.app.update.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "app.selectorLabels" . | nindent 8 }}
+        {{- with .Values.app.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false # prevent mount /run/**/secrets
+      {{- if .Values.app.vaultSecrets.enabled }}
+      serviceAccountName: {{ .Values.app.vaultSecrets.role }} # SA для чтения из vault
+      {{- end }}
+      {{- with .Values.app.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      {{- include "myhlp.vault_secrets_init_container" . | nindent 6 -}}
+      containers:
+        - name: {{ include "app.fullname" . }}
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}@sha256:{{ .Values.app.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true # Блокирует запись везде кроме /tmp и монтируемых volume
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: {{ .Values.app.resources.requests.memory }}
+              cpu: {{ .Values.app.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.app.resources.limits.memory }}
+              cpu: {{ .Values.app.resources.limits.cpu }}
+          env:
+            {{- range .Values.app.envs }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+          volumeMounts:
+            {{- include "myhlp.dotenv_file_mount" . | nindent 10 -}}
+          {{- if .Values.app.probes.enabled }}
+          livenessProbe:
+            {{- if .Values.app.probes.liveness.enabled }}
+            httpGet:
+              path: {{ .Values.app.probes.liveness.path }}
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds | default .Values.app.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds | default .Values.app.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.liveness.timeoutSeconds | default .Values.app.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.probes.liveness.failureThreshold | default .Values.app.probes.failureThreshold }}
+            {{- end }}
+          readinessProbe:
+            {{- if .Values.app.probes.readiness.enabled }}
+            httpGet:
+              path: {{ .Values.app.probes.readiness.path }}
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds | default .Values.app.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds | default .Values.app.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.readiness.timeoutSeconds | default .Values.app.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.probes.readiness.failureThreshold | default .Values.app.probes.failureThreshold }}
+            {{- end }}
+          {{- end }}
+      volumes:
+        {{- include "myhlp.volumes" . | nindent 8 -}}
