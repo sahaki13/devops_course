@@ -1,0 +1,7 @@
+helm_install_from_repo: true
+helm_version: v3.20.0
+helm_arch: linux-amd64
+
+helm_archive_url: "https://get.helm.sh/helm-{{ helm_version }}-{{ helm_arch }}.tar.gz"
+helm_archive_download_path: "/opt/helm-{{ helm_version }}-{{ helm_arch }}.tar.gz"
+helm_binary_path: /usr/bin/helm

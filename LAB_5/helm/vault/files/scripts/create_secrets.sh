@@ -10,14 +10,10 @@ fi
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN=$(sed -n 's|Initial Root Token: \(.*\)|\1|p' $KEYS_FILE)
 
-environments="prod dev sandbox"
+applications="echo-server hash-generator"
+environments="dev preprod prod"
 for env in $environments; do
-    echo "--- Create secrets: $env ---"
-    vault secrets enable -path=secrets/$env/echo-server kv-v2 || true
-
-    vault kv put secrets/$env/echo-server/config \
-        "${env}secret1=tpl1" \
-        "${env}secret2=tpl2"
+    echo -e "\n========== Environment: $env =========="
 
     # for all services within namespace $env
     echo "--- Upsert policy: $env ---"
@@ -30,7 +26,23 @@ EOF
     echo "Check policy $env:"
     vault policy read read-secret-$env
 
-    echo "Check secret $env:"
-    vault kv get secrets/$env/echo-server/config
-    echo "--------------------------"
+    for app_name in $applications; do
+        echo -e "\n--- Service: $app_name ---"
+
+        # enable kv engine
+        vault secrets enable -path=secrets/$env/$app_name kv-v2 || true
+
+        # write secrets
+        vault kv put secrets/$env/$app_name/config \
+            "$( echo ${env}_secret_0 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+            "$( echo ${env}_secret_1 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+            "$( echo ${env}_secret_2 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+            "$( echo ${env}_secret_3 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )"
+
+        # check
+        echo "Check secret $env/$app_name:"
+        vault kv get secrets/$env/$app_name/config
+    done
+
+    echo -e "\n========== Environment $env: DONE =========="
 done

@@ -4,7 +4,7 @@ set -e
 # Change these vars if needed
 DEFAULT_REGISTRY="http://192.168.99.100:5050"
 DEFAULT_USERNAME="user" # ignored when using a GitLab PAT
-KUBE_NAMESPACES=('echo-server' 'dev' 'prod')
+KUBE_NAMESPACES=('dev' 'preprod' 'prod')
 KUBE_RES_NAME="gitlab-insecure-registry"
 
 echo -e "Create Docker registry secret for Kubernetes\n"

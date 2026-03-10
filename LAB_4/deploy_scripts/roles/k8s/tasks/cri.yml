@@ -49,11 +49,17 @@
 
     - name: Install crictl with completion
       block:
+        - name: Check crio tarball exists
+          ansible.builtin.stat:
+            path: "/opt/crictl-{{ k8s_crictl_version }}-linux-amd64.tar.gz"
+          register: k8s_crio_tarball
+
         - name: Download crictl tarball
           ansible.builtin.get_url:
             url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/{{ k8s_crictl_version }}/crictl-{{ k8s_crictl_version }}-linux-amd64.tar.gz"
             dest: /opt
             mode: '0640'
+          when: not k8s_crio_tarball.stat.exists
 
         - name: Install crictl
           ansible.builtin.unarchive:

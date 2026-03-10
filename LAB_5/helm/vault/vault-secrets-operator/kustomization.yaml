@@ -1,0 +1,11 @@
+resources:
+  - ./crds/secrets.hashicorp.com_csisecrets.yaml
+  - ./crds/secrets.hashicorp.com_hcpauths.yaml
+  - ./crds/secrets.hashicorp.com_hcpvaultsecretsapps.yaml
+  - ./crds/secrets.hashicorp.com_secrettransformations.yaml
+  - ./crds/secrets.hashicorp.com_vaultauthglobals.yaml
+  - ./crds/secrets.hashicorp.com_vaultauths.yaml
+  - ./crds/secrets.hashicorp.com_vaultconnections.yaml
+  - ./crds/secrets.hashicorp.com_vaultdynamicsecrets.yaml
+  - ./crds/secrets.hashicorp.com_vaultpkisecrets.yaml
+  - ./crds/secrets.hashicorp.com_vaultstaticsecrets.yaml

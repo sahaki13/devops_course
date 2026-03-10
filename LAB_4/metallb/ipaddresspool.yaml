@@ -1,0 +1,9 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: libvirt-pool
+  namespace: metallb-system
+spec:
+  # Address pool that MetalLB assign to services
+  addresses:
+    - 192.168.99.200-192.168.99.205

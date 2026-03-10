@@ -1,0 +1,15 @@
+{{- if .Values.vault.vso.enabled -}}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: {{ include "app.fullname" .  }}-auth
+  namespace: {{ .Values.app.namespace }}
+spec:
+  vaultConnectionRef: {{ include "app.fullname" . }}-vault-connection
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: {{ .Values.vault.role }}
+    serviceAccount: {{ .Values.vault.serviceAccountName }}
+    # audiences: [""]
+{{- end }}

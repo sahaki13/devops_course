@@ -1,0 +1,67 @@
+{{- if .Values.injector.enabled -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.testPod.name }}-agent-injector
+  namespace: {{ .Values.testPod.namespace }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # agent-injector annotations
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "vault-auth"  # match with vault role
+    vault.hashicorp.com/agent-inject-secret-noparse.txt: "secrets/dev/echo-server/data/config"
+    vault.hashicorp.com/agent-inject-template-env: |  # range each secret
+      {{`{{- with secret "secrets/dev/echo-server/data/config" -}}
+        {{- range $k, $v := .Data.data }}export {{ $k }}={{ $v }}{{"\n"}}{{- end -}}
+      {{- end }}`}}
+    vault.hashicorp.com/agent-inject-template-target: |  # targeted secret
+      {{`{{- with secret "secrets/dev/echo-server/data/config" -}}
+        server:
+          port: 8080
+        spring:
+          datasource:
+            url: jdbc:postgresql://localhost:5432/mydb?currentSchema=myschema
+            username: {{ .Data.data.devsecret1 }}
+            password: {{ .Data.data.devsecret2 }}
+          jpa:
+            hibernate:
+              ddl-auto: update
+      {{- end }}`}}
+  labels:
+    vault.hashicorp.com/agent-inject: "true"  # trigger mutation webhook by this label
+spec:
+  activeDeadlineSeconds: 20
+  restartPolicy: Never
+  serviceAccountName: {{ .Values.testPod.serviceAccountName }}
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    sysctls: []
+  terminationGracePeriodSeconds: 0
+  containers:
+    - name: example-pod
+      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          #!/bin/sh
+
+          # check injection
+          cat /vault/secrets/noparse.txt
+          echo "## ----------------------------------------------------- ##"
+          cat /vault/secrets/env
+          echo "## ----------------------------------------------------- ##"
+          cat /vault/secrets/target
+          echo "## ----------------------------------------------------- ##"
+
+          # inject to env
+          source /vault/secrets/env
+          env
+          sleep 2
+
+          # run your app
+          # java -jar ...
+{{- end }}

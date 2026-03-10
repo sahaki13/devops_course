@@ -10,6 +10,33 @@
 * [Kubernetes Installing kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
 * [Kubernetes Creating a cluster with kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm)
 * [Kubespray](https://github.com/kubernetes-sigs/kubespray)
+## Популярные клиенты для управления кластером
+* [k9s](https://github.com/derailed/k9s)
+* [freelens](https://github.com/freelensapp/freelens)
+
+## Возможные ошибки при установке
+
+Если что-то идет не так и на этапе установки k8s возникают ошибки, то можно очистить систему:
+
+```
+$ make reset_k8s   # остановка кластера + удаление + очистка конфигураций k8s
+$ make install_k8s k8s_install_tags="k8s_kube_init,k8s_kube_join,k8s_approve_certs,k8s_add_network_plugin" # набор тегов для повторной инициализации k8s
+$ make cleanup_k8s # остановка кластера и полная очистка включая установленные пакеты
+```
+
+Если coredns не может запуститься, можно попробовать удалить поды (перезапустятся после удаления автоматически) и проверить статус еще раз
+```
+$ k delete -n kube-system pod coredns-<hash> coredns-<hash>
+```
+
+Проблемы с разрешением DNS адресов на IPv4
+```
+В k8s/vars/main.yml уже выставленны значения для отключения резолвера(systemd-resolved) и IPv6.
+
+k8s_disable_ipv6: true
+k8s_disable_systemd_resolved: true
+```
+
 
 # Требования
 
@@ -85,54 +112,37 @@ $ source ~/.bashrc
 
 ![k8s_log](./docs/k8s_log.png "k8s_log")
 
-
-7) Добавить imagePullSecrets для своего private registry
-
-```
-# запустить сценарий, предварительно изменив в нем переменные если нужно
-$ ./scripts/create_registry_secret.sh
-
-# проверить созданный секрет следующей командой (поменять ns и название секрета, если нужно)
-$ kubectl get secrets -n echo-server gitlab-insecure-registry -o json | jq -r '.data[".dockerconfigjson"]' | base64 -d | json_pp
-```
-
-8) Установить helm
+7) Установить helm
 
 ```
 $ make helm_install
 $ helm version # проверить установку helm
 ```
 
-9) Запустить daemonset со своим сервисом для проверки работы registry:
+8) Запустить metallb и ingress controller
 
 ```
-$ k apply -f ../kube_files/daemonset-app.yaml
+$ k apply -k ../ingress-controller
+$ ../metallb/patch_strictARP.sh
+$ k apply -k ../metallb
+
+# Проверить, что появились поды и они работают + CRD
+$ k get pods -n metallb-system
+$ k get ipaddresspools.metallb.io -n metallb-system
+$ k get l2advertisements.metallb.io -n metallb-system
+$ k describe svc ingress-nginx-controller -n ingress-nginx
+
+# Поле под EXTERNAL-IP не должно быть в статусе pending
+$ k get svc -A | grep -E "CLUSTER-IP|LoadBalancer"
 ```
 
-Если все ок, то будет надпись об успешной загрузке образа.
-
-![check_registry](./docs/check_registry.png "check_registry")
-
-   После удалить запущенный daemonset с помощью команды:
-
 ```
-$ k delete -f ../kube_files/daemonset-app.yaml
+# Если все получилось, то точка входа ingress будет указана в EXTERNAL-IP
+kubectl get svc -n ingress-nginx
 ```
 
-10) Запустить metallb и ingress controller
-
-```
-$ k apply -f ./deploy_scripts/roles/k8s/files/ingress-nginx.yaml
-$ ./deploy_scripts/scripts/setup_metallb.sh
-
-$ kubectl get pods -n metallb-system
-$ kubectl get ipaddresspools.metallb.io -n metallb-system
-$ kubectl get l2advertisements.metallb.io -n metallb-system
-$ kubectl describe svc ingress-nginx-controller -n ingress-nginx
-
-# EXTERNAL-IP не должен быть pending
-$ kubectl get svc -A | grep LoadBalancer
-```
+  Если что-то подобное будет в логе, то еще раз выполнить команду `k apply -k ../metallb`
+![metallb_check](./docs/metallb_crd_issue.png "metallb_check")
 
    После проверить что metallb развернулся (extenal-ip должен быть присвоен из пула адресов)
 ![metallb_check](./docs/metallb_check.png "metallb_check")
@@ -140,17 +150,38 @@ $ kubectl get svc -A | grep LoadBalancer
    Перейти по адресу http://192.168.99.200/ и проверить что nginx запустился и работает
 ![nginx_check](./docs/nginx_check.png "nginx_check")
 
-
-## Ошибки при установке
-
-Если что-то идет не так и на этапе установки k8s возникают ошибки, то можно очистить систему:
+9) Добавить imagePullSecrets для своего private registry и
+   запустить daemonset со своим сервисом для проверки работы registry:
 
 ```
-$ make reset_k8s   # остановка кластера и очистка конфигураций k8s
-$ make install_k8s k8s_install_tags="k8s_kube_init,k8s_kube_join,k8s_approve_certs,k8s_add_network_plugin" # набор тегов для повторной инициализации k8s
-$ make cleanup_k8s # остановка кластера и полная очистка включая установленные пакеты
+# Запустить сценарий, предварительно изменив в нем переменные если нужно
+$ ./scripts/create_registry_secret.sh
+
+# Проверить созданный секрет следующей командой (поменять ns и название секрета, если нужно)
+$ k get secrets -n <namespace> gitlab-insecure-registry -o json | jq -r '.data[".dockerconfigjson"]' | base64 -d | json_pp
+```
+
+```
+# Запустить манифест, предварительно изменив в нем значения под свой сервис
+$ k apply -f ../kube_files/daemonset-app.yaml
+```
+
+  Если все ок, то будет надпись об успешной загрузке образа.
+
+![check_registry](./docs/check_registry.png "check_registry")
+
+```
+# После удалить запущенный daemonset с помощью команды:
+$ k delete -f ../kube_files/daemonset-app.yaml
+```
+
+10) *Опционально. Установить metrics-server для отображения потребления ресурсов кластера.
+
+```
+$ k apply -k ../metrics-server
 ```
 
 ## При показе выполненного задания
    * Продемонстрировать рабочий кластер k8s с помощью команд в п.6
    * Продемонстрировать успешную загрузку образа из вашего registry
+   * Продемонстрировать работу ingress-controller

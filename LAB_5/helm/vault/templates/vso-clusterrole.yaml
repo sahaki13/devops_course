@@ -1,0 +1,94 @@
+{{- if .Values.vso.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "vault.name" . }}-secrets-operator-role
+  labels:
+    app.kubernetes.io/name: {{ include "vault.name" . }}-secrets-operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+rules:
+  # Secrets rules
+  - apiGroups: [""]
+    resources:
+      - secrets
+      - serviceaccounts
+    verbs:
+      - create
+      - update
+      - patch
+      - delete
+      - get
+      - list
+      - watch
+      - deletecollection
+
+  # leader election rules (leases)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs:
+      - get
+      - create
+      - update
+      - patch
+      - delete
+
+  # CRD vso rules
+  - apiGroups: ["secrets.hashicorp.com"]
+    resources:
+      - vaultconnections
+      - vaultauths
+      - vaultauthglobals
+      - vaultstaticsecrets
+      - vaultdynamicsecrets
+      - vaultpkisecrets
+      - secrettransformations
+      - hcpauths
+      - hcpvaultsecretsapps
+      - csisecrets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # CRD subresource /status rules
+  - apiGroups: ["secrets.hashicorp.com"]
+    resources:
+      - vaultconnections/status
+      - vaultauths/status
+      - vaultauthglobals/status
+      - vaultstaticsecrets/status
+      - vaultdynamicsecrets/status
+      - vaultpkisecrets/status
+      - secrettransformations/status
+      - hcpauths/status
+      - hcpvaultsecretsapps/status
+      - csisecrets/status
+    verbs:
+      - "get"
+      - "update"
+      - "patch"
+
+  # ServiceAccount rules
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "serviceaccounts/token"]
+    verbs: ["create", "get", "update"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+
+  # events rules
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs:
+      - create
+      - patch
+
+{{- end }}

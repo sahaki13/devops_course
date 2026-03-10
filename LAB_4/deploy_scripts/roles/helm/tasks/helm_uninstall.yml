@@ -1,7 +1,7 @@
 ---
-- name: Uninstalling helm
+- name: Uninstalling helm (Repository)
   become: true
-  when: inventory_hostname is search("master")
+  when: inventory_hostname is search("master") and helm_install_from_repo
   block:
     - name: Helm keyrings
       ansible.builtin.file:
@@ -21,6 +21,25 @@
         name: "{{ helm_packages }}"
 
     - name: Helm shell completion
+      ansible.builtin.file:
+        path: /etc/bash_completion.d/helm
+        state: absent
+
+- name: Uninstalling helm (Tarball)
+  become: true
+  when: inventory_hostname is search("master") and not helm_install_from_repo
+  block:
+    - name: Delete binary
+      ansible.builtin.file:
+        path: "{{ helm_binary_path }}"
+        state: absent
+
+    - name: Delete archive
+      ansible.builtin.file:
+        path: "{{ helm_archive_download_path }}"
+        state: absent
+
+    - name: Delete shell completion
       ansible.builtin.file:
         path: /etc/bash_completion.d/helm
         state: absent

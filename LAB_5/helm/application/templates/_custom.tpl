@@ -1,5 +1,5 @@
 {{- define "myhlp.vault_secrets_init_container" -}}
-{{- if and .Values.app.vaultSecrets.enabled -}}
+{{- if and .Values.vault.enabled -}}
 initContainers:
   - name: secrets-init
     image: "{{ .Values.app.initContainer.repository }}:{{ .Values.app.initContainer.tag }}@sha256:{{ .Values.app.initContainer.digest }}"
@@ -18,9 +18,9 @@ initContainers:
         {{- if .Values.app.initContainer.isDebug }}
         sleep 99999
         {{- end }}
-        secret_path="secrets/{{ .Values.app.environment }}/{{ include "app.fullname" . }}/data/config"
-        vault_addr="http://vault-svc.vault.svc:8200" && \
-        role="{{ .Values.app.vaultSecrets.role }}" && \
+        secret_path="secrets/{{ .Values.app.namespace }}/{{ include "app.fullname" . }}/data/config"
+        vault_addr="{{ .Values.vault.address }}" && \
+        role="{{ .Values.vault.role }}" && \
         sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token) && \
         v_t=$(curl -f -s -X POST -d "{\"jwt\":\"$sa_t\",\"role\":\"$role\"}" $vault_addr/v1/auth/kubernetes/login | jq -r '.auth.client_token')
         if [ "$v_t" == "null" ] || [ "$v_t" == "" ]; then echo "Auth failed"; exit 1; fi
@@ -44,7 +44,7 @@ initContainers:
 {{- end }}
 
 {{- define "myhlp.dotenv_file_mount" -}}
-{{- if .Values.app.vaultSecrets.enabled -}}
+{{- if .Values.vault.enabled -}}
 - name: dotenv
   mountPath: /empty/.env
   subPath: .env
@@ -52,7 +52,7 @@ initContainers:
 {{- end }}
 
 {{- define "myhlp.volumes" -}}
-{{- if .Values.app.vaultSecrets.enabled -}}
+{{- if .Values.vault.enabled -}}
 - name: dotenv
   emptyDir:
     medium: "Memory"

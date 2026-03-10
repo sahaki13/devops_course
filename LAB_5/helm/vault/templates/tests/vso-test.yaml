@@ -1,0 +1,118 @@
+{{- if .Values.vso.enabled -}}
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: {{ .Values.testPod.name }}-auth
+  namespace: {{ .Values.testPod.namespace }}
+spec:
+  vaultConnectionRef: {{ .Values.testPod.vso.vaultConnectionName }}
+  # namespace: {{ .Values.testPod.namespace }}
+  method: kubernetes
+  mount: kubernetes
+
+  kubernetes:
+    role: {{ .Values.testPod.serviceAccountName }}
+    serviceAccount: {{ .Values.testPod.serviceAccountName }}
+    # audiences: [""]
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: {{ .Values.testPod.vso.vaultConnectionName }}
+  namespace: {{ .Values.testPod.namespace }}
+spec:
+  address: {{ .Values.vso.vaultAddr }}
+  skipTLSVerify: true
+---
+{{- $envTemplate := `{{- range $k,$v:=.Secrets}}{{$k}}={{$v}}{{"\n"}}{{- end}}` }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: {{ .Values.testPod.name }}-secrets
+  namespace: {{ .Values.testPod.namespace }}
+spec:
+  vaultAuthRef: {{ .Values.testPod.name }}-auth
+  type: {{ .Values.testPod.vault.secret.type }}
+  mount: {{ .Values.testPod.vault.secret.enginePath }}
+  path: {{ .Values.testPod.vault.secret.name }}
+  refreshAfter: 30s
+  destination:
+    create: true
+    name: {{ .Values.testPod.name }}-secret
+    {{- if .Values.testPod.vso.injectToFile }}
+    transformation:
+      # excludes:
+      #  - .*
+      templates:
+        env:
+          name: env
+          text: |
+            {{ $envTemplate }}
+    {{- end }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.testPod.name }}-vso
+  namespace: {{ .Values.testPod.namespace }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 20
+  restartPolicy: Never
+  serviceAccountName: {{ .Values.testPod.serviceAccountName }}
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    sysctls: []
+  terminationGracePeriodSeconds: 0
+  containers:
+    - name: dev-jq-curl-1
+      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+      env:
+        - name: TZ
+          value: "Europe/Moscow"
+      {{- if .Values.testPod.vso.injectToFile }}
+      volumeMounts:  # inject to file
+        - name: env
+          mountPath: /vault/secrets
+          readOnly: true
+      {{ else }}
+      envFrom:  # inject to env
+        - secretRef:
+            name: {{ .Values.testPod.name }}-secret
+      {{- end }}
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          env
+          echo "## ----------------------------------------------------- ##"
+          cat /vault/secrets/env || true
+          echo "## ----------------------------------------------------- ##"
+          sleep 2
+  volumes:
+    {{- if .Values.testPod.vso.injectToFile }}
+    - name: env
+      secret:
+        secretName: {{ .Values.testPod.name }}-secret
+        items:
+          - key: env
+            path: env
+            mode: 0400
+    {{ else }}
+    - name: {{ .Values.testPod.name }}-secret
+      secret:
+        secretName: {{ .Values.testPod.name }}-secret
+    {{- end }}
+{{- end }}

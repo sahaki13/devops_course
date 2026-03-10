@@ -3,10 +3,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.services.headless.name }}
-  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
 spec:
   selector:
-    app: vault
+    {{- include "vault.selectorLabels" . | nindent 4 }}
   clusterIP: None
   publishNotReadyAddresses: true
   ports:
@@ -22,11 +24,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.statefulset.name }}
-  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  name: {{ .Values.agent.name }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
 spec:
   selector:
-    app: {{ .Values.services.ui.name }}
+    {{- include "vault.selectorLabels" . | nindent 4 }}
   type: {{ .Values.services.ui.type }}
   ports:
     - protocol: TCP

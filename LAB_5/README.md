@@ -3,9 +3,14 @@
 ## Docs
 
 * [Helm](https://helm.sh/docs)
+* [Helm functions](https://helm.sh/docs/chart_template_guide/function_list)
 * [Kubernetes](https://kubernetes.io/docs/home/)
 * [Kubernetes cluster architecture](https://kubernetes.io/docs/concepts/architecture/)
+* [Vault kubernetes](https://developer.hashicorp.com/vault/tutorials/kubernetes/kubernetes-raft-deployment-guide)
 * [Vault cli](https://developer.hashicorp.com/vault/docs/commands)
+* [Vault Secret Operator (VSO)](https://developer.hashicorp.com/vault/tutorials/kubernetes-introduction/vault-secrets-operator?productSlug=vault&tutorialSlug=kubernetes&tutorialSlug=vault-secrets-operator)
+* [VSO Secret Transformation](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/vso/secret-transformation)
+* [Vault Agent Injector](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector)
 
 # Требования
 
@@ -49,21 +54,45 @@ $ cd ~/work/LAB_5
 # Добавить к себе на хост запись в /etc/hosts
 192.168.99.200 vault.test.local
 
-# Создать директорию для хранения данных vault на диске и pv
+# Создать ns + директорию для хранения данных vault на диске + pv
 $ k apply -f ./examples/vault/setup-vault.yaml
 
 # Установить chart и дождаться инициализации (проверить по логам или ui)
-$ helm install vault -n vault ./helm/vault
+$ helm upgrade --install -n vault vault ./helm/vault
 
-# Запустить сценарии (предварительно поменять значения на свои ./helm/templates/configmap.yaml)
-$ k exec -it -n vault vault-0 -- /vault/scripts/create_users.sh
-$ k exec -it -n vault vault-0 -- /vault/scripts/create_secrets.sh
+# Зайти в под и запустить сценарии (предварительно поменять значения на свои ./helm/templates/configmap.yaml)
+$ k exec -it -n vault vault-0 -- /bin/sh
+$ /vault/scripts/create_users.sh
+$ /vault/scripts/create_secrets.sh
+$ /vault/scripts/setup_auth_method.sh
+```
+
+По умолчанию работает возможность получения секретов по REST API, реализованная своими собственными скриптами.
+Нужно на выбор взять или `vault agent inject`/`vault secret operator` подход или оставить по умолчанию. (на данный момент в примере чарта `application` реализован REST API и VSO)
+```
+# Для vault agent inject сначала надо сгенерировать ключи
+
+helm template -n vault vault ./helm/vault --set injector.enabled=true -s templates/injector-secret.yaml
+
+# Подставить сгенерированные значения в values.yaml, включить injector и сделать helm upgrade
+
+injector.certs.*
+injector.enabled: true
+$ helm upgrade --install -n vault vault ./helm/vault
+
+#############################################################
+
+# Для vault secret operator изменить значение в values.yaml, применить CRD, создать ns и сделать helm upgrade
+
+vso.enabled: true
+$ k apply -k ./helm/vault/vault-secrets-operator/
+$ k create ns vso
+$ helm upgrade --install -n vault vault ./helm/vault
 ```
 
 ```
-# Проверка все ли успешно прошло (лог пода можно смотреть в другом окне пока работает тест)
-$ helm test -n vault vault
-$ k logs -n dev pods/vault-test dev-jq-curl-1 --follow
+# Запуск тестов для проверки получения секретов в под (предварительно убрать лишние из списка в скрипте)
+$ ./helm/vault/scripts/run_tests.sh
 ```
 ![test_success](./docs/test_success.png "test_success")
 ![test_success_log](./docs/test_success_log.png "test_success_log")
@@ -83,36 +112,59 @@ $ k apply -f ./examples/vault/remove-vault-srotage.yaml
 $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 ```
 
-3) Использовать helm для запуска сервиса (пример чарта расположен в ./helm/ms).
+3) Использовать helm для запуска сервиса (пример чарта расположен в ./helm/application).
    Отредактировать values для своего сервиса и запустить или сделать свой чарт с нуля.
 
 ```
-# Поправить values в чарте ./helm/ms/values.yaml
+# Поправить values в чарте ./helm/application/values.yaml
 
 # Добавить к себе на хост запись в /etc/hosts (<service_name> поменять на свое имя сервиса)
 192.168.99.200 <service_name>.test.local
 
 # Создание структуры шаблона
-$ helm create echo-server
+$ helm create <name>
 
 # Проверка шаблона с подставленными values (для отладки шаблонизатора)
-$ helm template -n dev echo-server ./helm/ms/
+$ helm template -n <ns> <name> <path_to_chart>
 
 # Установка чарта
-$ helm install -n dev echo-server ./helm/ms
+$ helm install -n <ns> <name> <path_to_chart>
 
 # Обновление версии чарта (например изменить версию образа), правим values и обновляем
-$ helm upgrade -n dev echo-server ./helm/ms
+$ helm upgrade -n <ns> <name> <path_to_chart>
 
 # Можно через --set-string указать нужные values для замены (через запятую без пробелов)
-$ helm upgrade -n dev echo-server ./helm/ms --set-string ms.tag=2.3.0,ms.rs=5
+$ helm upgrade -n <ns> <name> <path_to_chart> --set-string <path_to_value>=2.3.0,<path_to_value>=5
+
+# Пример
+$ helm upgrade -n dev echo-server . --set-string app.image.tag=2.3.0,app.replicas=5
 
 # Удалить чарт
-$ helm uninstall -n dev echo-server
+$ helm uninstall -n dev <name>
 ```
+
+#### CRD vault secret operator
+```
+$ k get -n <ns> vaultauth,vaultconnection,vaultstaticsecret,secrettransformation
+$ k delete -n <ns> vaultauth,vaultstaticsecret,vaultconnection,secrettransformation <res_names>
+```
+
 
 ## Полезные команды k8s
 ```
+# Посмотреть структуру полей манифеста
+k explain <controller_name> --recursive
+k explain rs --recursive
+k explain deploy --recursive
+k explain vaultauth --recursive # crd
+
+# Посмотреть taints на узлах
+kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
+
+kubectl get pods -A -o custom-columns=NODE:.spec.nodeName,NAMESPACE:.metadata.namespace,POD:.metadata.name \
+  --sort-by=.spec.nodeName | awk 'NR>1 && $1!=prev {print "------------------"} {prev=$1; print}'
+
+
 # Показать манифест без запуска
 k apply -k <path_to_manifest> --dry-run=client -o yaml
 
@@ -149,7 +201,7 @@ k run dbg-pod --rm -it --restart=Never --image=docker.io/pnnlmiscscripts/curl-jq
 
 ## При показе выполненного задания
    * Запустить deployment и сделать запросы к сервису
-   * Продемонстрировать успешную настройку и доступ к vault
+   * Продемонстрировать успешную настройку и доступ к vault, создать секреты к своему сервису
    * Запустить helm чарт для сервиса, продемонстрировать что секреты были
-     получены из vault и были прочитаны сервисом.
-     (например прочесть .env и вывести содержимое при запросе к отдельному endpoint сервиса)
+     получены из vault и успешно прочитаны сервисом.
+     (например прочесть файл с переменными окружения или забрать из environment и вывести прочитанные переменные при запросе к отдельному endpoint сервиса).

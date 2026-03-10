@@ -1,0 +1,50 @@
+{{- if .Values.vso.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vault.name" . }}-secrets-operator
+  namespace: {{ .Values.vso.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "vault.name" . }}-secrets-operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.vso.replicas }}
+  selector:
+    matchLabels:
+      app: vault-secrets-operator
+  template:
+    metadata:
+      labels:
+        app: vault-secrets-operator
+    spec:
+      serviceAccountName: vault-secrets-operator
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      {{- range .Values.vso.affinity.nodes }}
+                      - {{ . | quote }}
+                      {{- end }}
+      containers:
+        - name: operator
+          image: "{{ .Values.vso.image.repository }}:{{ .Values.vso.image.tag }}"
+          args:
+            - manager
+            - --metrics-addr=:{{ .Values.vso.port }}
+            - --leader-elect
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: {{ .Values.vso.port }}
+              name: metrics
+          resources:
+            {{- toYaml .Values.vso.resources | nindent 12 }}
+{{- end }}

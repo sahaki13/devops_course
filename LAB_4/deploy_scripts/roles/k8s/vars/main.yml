@@ -1,4 +1,7 @@
 k8s_ipvs_enable: true
+# Set to true to disable IPv6 and fix DNS problems
+k8s_disable_ipv6: true
+k8s_disable_systemd_resolved: true
 
 # Append entry to the /etc/hosts for resolve name (optional)
 k8s_add_registry_domain_to_hosts: true
@@ -24,15 +27,13 @@ k8s_repo_mirror: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/{{ k8
                  # "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb" # blocked
                  # "https://mirrors.aliyun.com/kubernetes-new/core/stable/{{ k8s_version }}/deb" # ok
 k8s_crio_arch: amd64
-k8s_crio_repo_mirror: "https://mirror.tspu.ru/opensuse/repositories/isv:/cri-o:/stable:/{{ k8s_version }}/deb"
-                      # https://download.opensuse.org/repositories/isv:/cri-o:/stable:/{{ k8s_version }}/deb # blocked
-k8s_crio_version: "{{ k8s_version }}"
+k8s_crio_version: v1.35
+k8s_crio_repo_mirror: "https://mirror.tspu.ru/opensuse/repositories/isv:/cri-o:/stable:/{{ k8s_crio_version }}/deb"
+                      # https://download.opensuse.org/repositories/isv:/cri-o:/stable:/{{ k8s_crio_version }}/deb # blocked
 k8s_crictl_version: v1.35.0
 k8s_crio_reg_cert_dir: "{{ k8s_crio_cert_dir }}/{{ k8s_secure_registry.name }}"
 
 k8s_pod_network: "10.244.0.0/16"
-# k8s_cluster_domain: "cluster.preprod"
-# k8s_cluster_domain: "cluster.test"
 k8s_cluster_domain: "cluster.dev"
 
 k8s_user_config_dir: "{{ ansible_facts['env']['HOME'] }}/.kube"

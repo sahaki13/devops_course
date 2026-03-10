@@ -1,0 +1,10 @@
+{{- if .Values.vault.vso.enabled -}}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: {{ include "app.fullname" . }}-vault-connection
+  namespace: {{ .Values.app.namespace }}
+spec:
+  address: {{ .Values.vault.address}}
+  skipTLSVerify: true
+{{- end }}

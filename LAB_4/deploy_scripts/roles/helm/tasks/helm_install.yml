@@ -1,7 +1,7 @@
 ---
-- name: Installing helm
+- name: Installing helm (Repository)
   become: true
-  when: inventory_hostname is search("master")
+  when: inventory_hostname is search("master") and helm_install_from_repo
   block:
     - name: Obtain helm key
       ansible.builtin.get_url:
@@ -25,6 +25,45 @@
         state: present
         name: "{{ helm_packages }}"
         update_cache: true
+
+    - name: Create a bash_completion.d dir if it does not exist
+      ansible.builtin.file:
+        path: /etc/bash_completion.d
+        state: directory
+        mode: '0755'
+
+    - name: Add completion for helm
+      changed_when: false
+      ansible.builtin.shell: "helm completion bash > /etc/bash_completion.d/helm"
+
+- name: Installing helm (Tarball)
+  become: true
+  when: inventory_hostname is search("master") and not helm_install_from_repo
+  block:
+    - name: Check helm tarball exists
+      ansible.builtin.stat:
+        path: "{{ helm_archive_download_path }}"
+      register: helm_tarball_stat
+
+    - name: Download Helm
+      ansible.builtin.get_url:
+        url: "{{ helm_archive_url }}"
+        dest: "{{ helm_archive_download_path }}"
+        mode: '0644'
+      when: not helm_tarball_stat.stat.exists
+
+    - name: Extract Helm
+      ansible.builtin.unarchive:
+        src: "{{ helm_archive_download_path }}"
+        dest: /tmp
+        remote_src: true
+
+    - name: Install helm binary
+      ansible.builtin.copy:
+        src: /tmp/linux-amd64/helm
+        dest: "{{ helm_binary_path }}"
+        mode: '0755'
+        # remote_src: true
 
     - name: Create a bash_completion.d dir if it does not exist
       ansible.builtin.file:

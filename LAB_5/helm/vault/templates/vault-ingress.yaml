@@ -3,12 +3,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: vault
-  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
   annotations:
     # LB type
     nginx.ingress.kubernetes.io/lb-method: "round_robin"
     # Redirect to HTTPS
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "nginx" }}
   rules:

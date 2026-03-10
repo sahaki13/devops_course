@@ -1,26 +1,26 @@
-{{ include "vault.checkNamespace" . }}
+{{ include "vault.validate" . }}
 
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Values.statefulset.name }}
-  # namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  name: {{ .Values.agent.name }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
   labels:
-    app: vault
+    {{- include "vault.labels" . | nindent 4 }}
 spec:
   serviceName: {{ .Values.services.headless.name }}
-  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
+  podManagementPolicy: {{ .Values.agent.podManagementPolicy }}
   updateStrategy:
-    type: {{ .Values.statefulset.updateStrategy.type }}
+    type: {{ .Values.agent.updateStrategy.type }}
   selector:
     matchLabels:
-      app: vault
-  replicas: {{ .Values.statefulset.replicas }}
-  revisionHistoryLimit: {{ .Values.statefulset.revisionHistoryLimit }}
+      {{- include "vault.selectorLabels" $ | nindent 6 }}
+  replicas: {{ .Values.agent.replicas }}
+  revisionHistoryLimit: {{ .Values.agent.revisionHistoryLimit }}
   template:
     metadata:
       labels:
-        app: vault
+        {{- include "vault.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ .Values.serviceAccounts.vault.name }}
       affinity:
@@ -31,65 +31,65 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: In
                     values:
-                      {{- range .Values.statefulset.affinity.nodes }}
+                      {{- range .Values.agent.affinity.nodes }}
                       - {{ . | quote }}
                       {{- end }}
       securityContext:
-        runAsUser: {{ .Values.statefulset.securityContext.pod.runAsUser }}
-        runAsGroup: {{ .Values.statefulset.securityContext.pod.runAsGroup }}
-        fsGroup: {{ .Values.statefulset.securityContext.pod.fsGroup }}
+        runAsUser: {{ .Values.agent.securityContext.pod.runAsUser }}
+        runAsGroup: {{ .Values.agent.securityContext.pod.runAsGroup }}
+        fsGroup: {{ .Values.agent.securityContext.pod.fsGroup }}
         sysctls: []
       containers:
         - name: vault
-          image: "{{ .Values.statefulset.image.repository }}:{{ .Values.statefulset.image.tag }}"
-          imagePullPolicy: {{ .Values.statefulset.image.pullPolicy }}
+          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
           securityContext:
-            runAsNonRoot: {{ .Values.statefulset.securityContext.container.runAsNonRoot }}
-            allowPrivilegeEscalation: {{ .Values.statefulset.securityContext.container.allowPrivilegeEscalation }}
+            runAsNonRoot: {{ .Values.agent.securityContext.container.runAsNonRoot }}
+            allowPrivilegeEscalation: {{ .Values.agent.securityContext.container.allowPrivilegeEscalation }}
             capabilities:
-              drop: {{ .Values.statefulset.securityContext.container.capabilities.drop }}
+              drop: {{ .Values.agent.securityContext.container.capabilities.drop }}
           command: ["/bin/sh", "-ec"]
           args:
             - |
               vault server -config=/vault/config
           lifecycle:
-            {{- if .Values.statefulset.lifecycle.postStart.enabled }}
+            {{- if .Values.agent.lifecycle.postStart.enabled }}
             postStart:
               exec:
                 command:
                   - /bin/sh
                   - -c
                   - |
-                    sleep {{ .Values.statefulset.lifecycle.postStart.sleepSeconds | default 5 }}
-                    {{- range .Values.statefulset.lifecycle.postStart.scripts }}
-                    {{ . }} >> {{ $.Values.statefulset.lifecycle.postStart.logPath | default "/tmp/log" }} 2>&1
+                    sleep {{ .Values.agent.lifecycle.postStart.sleepSeconds | default 5 }}
+                    {{- range .Values.agent.lifecycle.postStart.scripts }}
+                    {{ . }} >> {{ $.Values.agent.lifecycle.postStart.logPath | default "/tmp/log" }} 2>&1
                     {{- end }}
             {{- end }}
-            {{- if .Values.statefulset.lifecycle.preStop.enabled }}
+            {{- if .Values.agent.lifecycle.preStop.enabled }}
             preStop:
               exec:
                 command:
                   - |
-                    {{- range .Values.statefulset.lifecycle.preStop.commands }}
+                    {{- range .Values.agent.lifecycle.preStop.commands }}
                     {{ . }}
                     {{- end }}
             {{- end }}
           ports:
-            - containerPort: {{ .Values.statefulset.ports.api }}
+            - containerPort: {{ .Values.agent.ports.api }}
               name: api
               protocol: TCP
-            - containerPort: {{ .Values.statefulset.ports.cluster }}
+            - containerPort: {{ .Values.agent.ports.cluster }}
               name: cluster
               protocol: TCP
           env:
             - name: TZ
-              value: {{ .Values.statefulset.env.TZ | quote }}
+              value: {{ .Values.agent.env.TZ | quote }}
             - name: KEYS_FILE
               value: "/mnt/vault_data/keys"
             - name: SKIP_CHOWN
-              value: {{ .Values.statefulset.env.SKIP_CHOWN | quote }}
+              value: {{ .Values.agent.env.SKIP_CHOWN | quote }}
             - name: SKIP_SETCAP
-              value: {{ .Values.statefulset.env.SKIP_SETCAP | quote }}
+              value: {{ .Values.agent.env.SKIP_SETCAP | quote }}
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -99,17 +99,17 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: VAULT_ADDR
-              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.api }}"
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.agent.ports.api }}"
             - name: VAULT_API_ADDR
-              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.api }}"
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.agent.ports.api }}"
             - name: VAULT_CLUSTER_ADDR
-              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.statefulset.ports.cluster }}"
+              value: "http://$(VAULT_RAFT_NODE_ID).{{ .Values.services.headless.name }}.{{ .Values.global.namespace | default .Release.Namespace }}.svc:{{ .Values.agent.ports.cluster }}"
             - name: HOME
-              value: {{ .Values.statefulset.env.HOME }}
+              value: {{ .Values.agent.env.HOME }}
           livenessProbe:
             httpGet:
               path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
-              port: {{ .Values.statefulset.ports.api }}
+              port: {{ .Values.agent.ports.api }}
               scheme: HTTP
             initialDelaySeconds: 25
             periodSeconds: 10
@@ -129,7 +129,7 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           resources:
-            {{- toYaml .Values.statefulset.resources | nindent 12 }}
+            {{- toYaml .Values.agent.resources | nindent 12 }}
           volumeMounts:
             - name: data
               mountPath: /mnt/vault_data
@@ -163,9 +163,9 @@ spec:
     - metadata:
         name: data
       spec:
-        storageClassName: {{ .Values.statefulset.volumeClaimTemplates.data.storageClassName }}
+        storageClassName: {{ .Values.agent.volumeClaimTemplates.data.storageClassName }}
         accessModes:
-          {{- toYaml .Values.statefulset.volumeClaimTemplates.data.accessModes | nindent 10 }}
+          {{- toYaml .Values.agent.volumeClaimTemplates.data.accessModes | nindent 10 }}
         resources:
           requests:
-            storage: {{ .Values.statefulset.volumeClaimTemplates.data.size }}
+            storage: {{ .Values.agent.volumeClaimTemplates.data.size }}

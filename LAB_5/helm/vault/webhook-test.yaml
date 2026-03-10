@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: test-webhook-cfg
+  # annotations:
+  #   vault.hashicorp.com/agent-inject: "true"
+webhooks:
+  - name: test.example.com
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: vault-agent-injector
+        namespace: vault
+        path: /mutate
+      # url: "https://127.0.0.1:12345/mutate"  # fake addr
+      caBundle: # CA from vault helm chart values.yaml
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+    objectSelector:
+      matchExpressions:
+        - key: test-webhook-trigger
+          operator: Exists

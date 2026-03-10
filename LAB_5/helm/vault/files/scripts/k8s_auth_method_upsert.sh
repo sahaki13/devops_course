@@ -12,8 +12,8 @@ fi
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN=$(sed -n 's|Initial Root Token: \(.*\)|\1|p' $KEYS_FILE)
 CLUSTER_DOMAIN="cluster.dev"
-POLICIES="read-secret-sandbox,read-secret-dev,read-secret-prod"
-NAMESPACES="sandbox,dev,prod"
+POLICIES="read-secret-dev,read-secret-preprod,read-secret-prod"
+NAMESPACES="dev,preprod,prod"
 SERVICE_ACCOUNT="vault-auth"
 ROLE="vault-auth"
 

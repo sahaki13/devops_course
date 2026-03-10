@@ -4,7 +4,7 @@ nameOverride: ""
 fullnameOverride: "echo-server"
 
 app:
-  environment: dev
+  namespace: dev
   image:
     repository: 192.168.99.100:5050/root/echo-server
     tag: 2.3.1
@@ -55,10 +55,6 @@ app:
     digest: e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1
     isDebug: false
 
-  vaultSecrets:
-    enabled: true # true - чтобы забрать секреты из vault
-    role: vault-auth
-
 service:
   type: ClusterIP # NodePort or ClusterIP
   nodePort: 31001
@@ -66,7 +62,21 @@ service:
 ingress:
   enabled: true
   hosts:
-    - host: echo-server.test.local # совпадает с тем что в /etc/hosts добавили
+    - host: echo-server.test.local # совпадает с тем, что в /etc/hosts добавили
       paths:
         - path: /
           pathType: Prefix
+
+vault:
+  enabled: false  # enable REST API
+  address: http://vault-svc.vault.svc:8200
+  role: vault-auth
+  serviceAccountName: vault-auth
+  secret:
+    # enginePathAPI: secrets/dev/echo-server/data/config
+    enginePath: secrets/dev/echo-server
+    name: config
+    type: kv-v2
+  vso:
+    enabled: true  # enable vault secret operator
+    injectToFile: false

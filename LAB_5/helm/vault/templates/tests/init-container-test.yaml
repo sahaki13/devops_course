@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: Pod
 metadata:
+  name: {{ .Values.testPod.name }}-init-container
   namespace: {{ .Values.testPod.namespace }}
-  name: "{{ include "vault.fullname" . }}-test"
   labels:
     {{- include "vault.labels" . | nindent 4 }}
   annotations:
@@ -10,7 +10,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
     # "helm.sh/hook-weight": "-1"
 spec:
-  activeDeadlineSeconds: 30
+  activeDeadlineSeconds: 20
   restartPolicy: Never
   serviceAccountName: {{ .Values.testPod.serviceAccountName }}
   securityContext:
@@ -21,7 +21,7 @@ spec:
   terminationGracePeriodSeconds: 0
   containers:
     - name: dev-jq-curl-1
-      image: docker.io/pnnlmiscscripts/curl-jq:1.6-15
+      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
       imagePullPolicy: IfNotPresent
       securityContext:
         runAsNonRoot: true
@@ -32,11 +32,11 @@ spec:
         - name: TZ
           value: "Europe/Moscow"
         - name: VAULT_ADDR
-          value: {{ .Values.testPod.env.vaultAddr | quote }}
+          value: {{ .Values.testPod.vault.addr | quote }}
         - name: SECRET_PATH
-          value: {{ .Values.testPod.env.secretPath | quote }}
+          value: "{{ .Values.testPod.vault.secret.enginePathAPI }}"
         - name: ROLE
-          value: {{ .Values.testPod.env.role | quote }}
+          value: {{ .Values.testPod.vault.role | quote }}
       command: ["/bin/sh", "-c"]
       args:
         - |
@@ -44,20 +44,23 @@ spec:
 
           echo "Vault addr: $VAULT_ADDR"
           echo "Logging into Vault..."
-          sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
+          SA_TOKEN=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
 
-          v_t=$(curl -s \
-                     -X POST \
-                     -d "{\"jwt\":\"$sa_t\",\"role\":\"$ROLE\"}" \
-                      $VAULT_ADDR/v1/auth/kubernetes/login \
-                      | jq -r '.auth.client_token')
-          if [ "$v_t" == "null" ] || [ "$v_t" == "" ]; then echo "Auth failed"; exit 1; fi
+          VAULT_TOKEN=$(curl -s \
+                        -X POST \
+                        -d "{\"jwt\":\"$SA_TOKEN\",\"role\":\"$ROLE\"}" \
+                         $VAULT_ADDR/v1/auth/kubernetes/login \
+                         | jq -r '.auth.client_token')
+
+          if [ "$VAULT_TOKEN" == "null" ] || [ "$VAULT_TOKEN" == "" ]
+            then echo "Auth failed"
+            exit 1
+          fi
 
           echo "Getting secret: $SECRET_PATH"
           curl -s \
-               -H "X-Vault-Token: $v_t" \
+               -H "X-Vault-Token: $VAULT_TOKEN" \
                $VAULT_ADDR/v1/$SECRET_PATH \
                | jq -r '.data.data | keys[] as $k | "\($k)=\(.[$k])"' \
                | tee /tmp/.env
-
-          sleep 5
+          sleep 2

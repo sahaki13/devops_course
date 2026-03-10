@@ -26,8 +26,8 @@ spec:
         {{- end }}
     spec:
       automountServiceAccountToken: false # prevent mount /run/**/secrets
-      {{- if .Values.app.vaultSecrets.enabled }}
-      serviceAccountName: {{ .Values.app.vaultSecrets.role }} # SA для чтения из vault
+      {{- if .Values.vault.enabled }}
+      serviceAccountName: {{ .Values.vault.serviceAccountName }} # SA для чтения из vault
       {{- end }}
       {{- with .Values.app.imagePullSecrets }}
       imagePullSecrets:
@@ -61,6 +61,11 @@ spec:
             - name: {{ .name }}
               value: {{ .value }}
             {{- end }}
+          {{- if .Values.vault.vso.enabled }}
+          envFrom:  # inject to env
+            - secretRef:
+                name: {{ include "app.fullname" . }}-secret
+          {{- end }}
           volumeMounts:
             {{- include "myhlp.dotenv_file_mount" . | nindent 10 -}}
           {{- if .Values.app.probes.enabled }}
