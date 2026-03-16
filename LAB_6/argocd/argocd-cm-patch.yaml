@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  # namespace: argocd
+data:
+  kustomize.buildOptions: |
+    --enable-helm --load-restrictor LoadRestrictionsNone
+
+  resource.customizations.health.secrets.hashicorp.com_VaultStaticSecret: |
+    -- resource.customizations.health.<API-Group>_<Kind>
+    -- prefix                         apiVersion before / _ From Resource Kind
+    -- 1. Создаём объект статуса
+    health_status = {}
+
+    -- 2. Если статуса еще нету, то повторяем зарос.
+    if obj.status == nil then
+      health_status.status = "Progressing"
+      health_status.message = "Waiting for VSO to create Secret..."
+      return health_status
+    end
+
+    -- 3. Ищем условие "SecretSynced".
+    if obj.status.conditions ~= nil then
+      for _, condition in ipairs(obj.status.conditions) do
+
+        -- Если SecretSynced: true, тогда статус Healthy
+        if condition.type == "SecretSynced" and condition.status == "True" then
+          health_status.status = "Healthy"
+          return health_status
+        end
+
+        -- Если SecretSynced: False, тогда статус ошибка
+        if condition.type == "SecretSynced" and condition.status == "False" then
+          health_status.status = "Degraded"
+          return health_status
+        end
+
+      end
+    end
+
+    -- 4. Если ничего не нашли, то повторяем запрос.
+    -- (Будет бесконечный Progressing, если obj.status.conditions не нашли указанные типы)
+    health_status.status = "Progressing"
+    return health_status
+

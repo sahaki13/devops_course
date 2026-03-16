@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-ssh-known-hosts-cm
+  # namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: known-hosts
+data:
+  ssh_known_hosts: ""
+# after kustomize appear here
+# k exec -it -n argocd pods/argocd-server-<hash> -- /bin/bash
+# cat /app/config/ssh/ssh_known_hosts

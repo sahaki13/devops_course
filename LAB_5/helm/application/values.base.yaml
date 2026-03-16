@@ -1,0 +1,77 @@
+nameOverride: ""
+fullnameOverride: ""
+
+app:
+  image:
+    repository: ""
+    tag: 0.0.1
+    digest: ""
+  port: 3000
+  replicas: 0
+  update:
+    maxUnavailable: 1
+    maxSurge: 0
+  podLabels: {}
+  deploymentAnnotations: {}
+
+  imagePullSecrets:
+    - name: ""
+
+  probes:
+    liveness:
+      enabled: true
+      path: /
+      periodSeconds: 8
+    readiness:
+      enabled: false
+      path: /
+      periodSeconds: 30
+  resources:
+    requests:
+      memory: 25Mi
+      cpu: 100m
+    limits:
+      memory: 25Mi
+      cpu: 100m
+  envs:
+  extraEnv:
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+
+  initContainer:
+    repository: docker.io/pnnlmiscscripts/curl-jq
+    tag: 1.6-15
+    digest: e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1
+    isDebug: false
+
+service:
+  type: ""
+
+ingress:
+  enabled: true
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+vault:
+  restApiEnabled: false
+  address: ""
+  role: ""
+  serviceAccountName: ""
+  secret:
+    enginePath: ""
+    name: config
+    type: kv-v2
+  vso:
+    enabled: false
+    staticSecretRefresh: 30s
+    injectToFile: false
+
