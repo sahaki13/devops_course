@@ -1,0 +1,6 @@
+server:
+  port: 9092
+
+database:
+  login: ${DB_USERNAME}
+  pass: ${DB_PASS}

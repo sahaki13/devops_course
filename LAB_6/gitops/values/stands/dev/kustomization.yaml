@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Перечисляем сервисы, которые хотим развернуть для данного стенда (dev)
+resources:
+  - ../../apps/echo-server/dev
+  - ../../apps/hash-generator/dev
+
+# Генерация всех ConfigMap для стенда (если не хотим перечислять в отдельных kustomization)
+# Пути указываем относительно ЭТОГО файла
+# namespace: dev  # ns для всех cm ниже
+# configMapGenerator:
+#   - name: echo-server-config
+#     # namespace: echo-server  # для конкретного сервиса свой ns
+#     files:
+#       - ../../apps/echo-server/dev/cfg/application.yaml
+#       - ../../apps/echo-server/dev/cfg/logback.xml
+#   - name: hash-generator-config
+#     # namespace: hash-generator
+#     files:
+#       - ../../apps/hash-generator/dev/cfg/application.yaml
+#       - ../../apps/hash-generator/dev/cfg/logback.xml
+

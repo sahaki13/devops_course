@@ -1,0 +1,6 @@
+server:
+  port: 3000
+
+database:
+  login: ${DB_USERNAME}
+  pass: ${DB_PASS}

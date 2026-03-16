@@ -1,0 +1,20 @@
+## Для стратегии, когда много сервисов расположены в 1 ns (dev, preprod, prod ...)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dev-applications
+  namespace: argocd
+spec:
+  destination:
+    namespace: dev
+    server: https://kubernetes.default.svc
+  source:
+    # path: ./values/apps/echo-server/dev  # single kustomize
+    path: ./values/stands/dev
+    repoURL: ssh://git@192.168.99.100:2222/root/gitops.git
+    targetRevision: feature/WBR-001
+  sources: []
+  project: default
+  syncPolicy:
+    automated: null
+

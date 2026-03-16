@@ -1,0 +1,11 @@
+# default values
+app:
+  envs:
+    DB_CONFIG_PATH: ""
+    DNS: ""
+    SVCS: ""
+    ENV: ""
+
+service:
+  type: ClusterIP
+

@@ -1,0 +1,18 @@
+## Для стратегии, когда 1 сервис == 1 ns и расположены на стендах (dev, preprod, prod ....)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: echo-server-dev  # Имя сервиса + окружение
+  namespace: argocd
+spec:
+  destination:
+    namespace: echo-server  # Строго неймспейс этого сервиса
+    server: https://kubernetes.default.svc
+  source:
+    path: ./values/apps/echo-server/dev  # Путь к оверлею сервиса
+    repoURL: ssh://git@192.168.99.100:2222/root/gitops.git
+    targetRevision: feature/WBR-001
+  project: default
+  syncPolicy:
+    automated: null
+

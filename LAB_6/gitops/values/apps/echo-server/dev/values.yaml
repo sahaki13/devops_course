@@ -1,0 +1,44 @@
+fullnameOverride: echo-server
+
+app:
+  image:
+    repository: 192.168.99.100:5050/root/echo-server
+    tag: 3.0.0
+    digest: "7d76ea2a0b013fa25880154e64e64c1204ec4aa4f6b9c4c7833e2b5cae41ab81"
+  replicas: 1
+  port: 3000
+  envs:
+    DB_CONFIG_PATH: "/config/echo-server"
+
+  # <<: *imagePullSecrets
+
+# migration:
+#   enabled: false
+
+# service:
+#   type: ClusterIP
+
+# resources:
+#   limits:
+#     memory: "64Mi"
+#     cpu: "100m"
+
+ingress:
+  enabled: true
+  hosts:
+    - host: echo-server.dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+vault:
+  address: http://vault-svc.vault.svc:8200
+  role: vault-auth-dev-echo-server
+  serviceAccountName: echo-server
+  secret:
+    enginePath: secrets/dev/echo-server
+    name: config
+    type: kv-v2
+  vso:
+    enabled: true
+

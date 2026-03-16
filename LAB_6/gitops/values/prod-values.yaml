@@ -1,0 +1,26 @@
+# global: &global
+app:
+  imagePullSecrets:
+    - name: gitlab-insecure-registry
+  deploymentAnnotations:
+    argocd.argoproj.io/sync-wave: "1"
+  envs:
+    DB_CONFIG_PATH: "PROD"
+    DNS: "PROD"
+    SVCS: "PROD"
+    ENV: "PROD"
+  probes:
+    liveness:
+      enabled: true
+      path: /healthcheck
+      periodSeconds: 10
+
+serviceAccount:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+
+vault:
+  vso:
+    annotations:
+      argocd.argoproj.io/sync-wave: "0"
+

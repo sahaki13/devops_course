@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Переопределяем namespace
+# namespace: echo-server
+namespace: dev
+
+resources:
+  - ../../../../base
+
+configMapGenerator:
+  - name: echo-server-config
+    files:
+      - ./cfg/application.yaml
+      - ./cfg/logback.xml
+    # options:
+    #   labels:
+    #     app: echo-server
+
+# path to root chart dir
+helmGlobals:
+  chartHome: ../../../../
+
+# Подменяем файл значений для Helm
+helmCharts:
+  - name: chart  # chart dirname
+    releaseName: echo-server
+    # namespace: dev
+    # valuesFile: ./values.yaml
+    valuesFile: ../../../../chart/values.base.yaml  # default values
+    additionalValuesFiles:  # порядок важен, чем ниже тем выше приоритет переопределения
+      - ../../../../base/values.yaml  # Общие values для всех стендов
+      - ../../../dev-values.yaml  # Общие values для dev стенда
+      - ./values.yaml  # values на уровне сервиса
+

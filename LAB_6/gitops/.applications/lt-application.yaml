@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lt-applications
+spec:
+  destination:
+    namespace: lt
+    server: https://kubernetes.default.svc
+  source:
+    path: ./values/stands/lt
+    repoURL: ssh://git@192.168.99.100:2222/root/gitops.git
+    targetRevision: feature/WBR-001
+  sources: []
+  project: default
+  syncPolicy:
+    automated: null
+
