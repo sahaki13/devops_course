@@ -181,6 +181,13 @@ $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 192.168.99.200 <service_name>.preprod.local
 192.168.99.200 <service_name>.prod.local
 ```
+
+## Запустить чарт и попробовать выполнить запросы к своему сервису
+```
+$ helm upgrade --install -n dev <service_name> ./helm/application
+curl http://<service_name>.test.local
+```
+
 ## Полезные команды helm
 ```
 # Создание структуры шаблона
@@ -267,3 +274,4 @@ k run dbg-pod --rm -it --restart=Never --image=docker.io/pnnlmiscscripts/curl-jq
 * Запустить helm чарт для сервиса, продемонстрировать что секреты были
   получены из vault и успешно прочитаны сервисом.
   (например прочесть файл с переменными окружения или забрать из environment и вывести прочитанные переменные при запросе к отдельному endpoint сервиса).
+

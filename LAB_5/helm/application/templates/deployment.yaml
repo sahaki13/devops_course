@@ -77,29 +77,30 @@ spec:
             {{- if .Values.vault.restApiEnabled | default false -}}
             {{- include "vaultApiHlp.dotenv_file_mount" . | nindent 10 -}}
             {{- end }}
-          {{- if .Values.app.probes.enabled }}
+          {{- if .Values.app.probes.liveness.enabled }}
           livenessProbe:
-            {{- if .Values.app.probes.liveness.enabled }}
             httpGet:
-              path: {{ .Values.app.probes.liveness.path }}
+              path: {{ .Values.app.probes.liveness.path | default "/healthz" }}
               port: {{ .Values.app.port }}
-            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds | default .Values.app.probes.initialDelaySeconds }}
-            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds | default .Values.app.probes.periodSeconds }}
-            timeoutSeconds: {{ .Values.app.probes.liveness.timeoutSeconds | default .Values.app.probes.timeoutSeconds }}
-            failureThreshold: {{ .Values.app.probes.liveness.failureThreshold | default .Values.app.probes.failureThreshold }}
-            {{- end }}
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.app.probes.liveness.timeoutSeconds | default 1 }}
+            failureThreshold: {{ .Values.app.probes.liveness.failureThreshold | default 3 }}
+            successThreshold: {{ .Values.app.probes.liveness.successThreshold | default 1 }}
+          {{- end }}
+          {{- if .Values.app.probes.readiness.enabled }}
           readinessProbe:
-            {{- if .Values.app.probes.readiness.enabled }}
             httpGet:
-              path: {{ .Values.app.probes.readiness.path }}
+              path: {{ .Values.app.probes.readiness.path | default "/readyz" }}
               port: {{ .Values.app.port }}
-            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds | default .Values.app.probes.initialDelaySeconds }}
-            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds | default .Values.app.probes.periodSeconds }}
-            timeoutSeconds: {{ .Values.app.probes.readiness.timeoutSeconds | default .Values.app.probes.timeoutSeconds }}
-            failureThreshold: {{ .Values.app.probes.readiness.failureThreshold | default .Values.app.probes.failureThreshold }}
-            {{- end }}
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.app.probes.readiness.timeoutSeconds | default 2 }}
+            failureThreshold: {{ .Values.app.probes.readiness.failureThreshold | default 3 }}
+            successThreshold: {{ .Values.app.probes.readiness.successThreshold | default 1 }}
           {{- end }}
       volumes:
         {{- if .Values.vault.restApiEnabled | default false -}}
         {{- include "vaultApiHlp.volumes" . | nindent 8 -}}
         {{- end }}
+
