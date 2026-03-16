@@ -8,6 +8,7 @@ tests=(
 )
 
 ns=dev
+# ns="hash-generator"
 
 for test in ${tests[@]}
 do

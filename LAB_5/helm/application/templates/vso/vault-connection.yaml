@@ -3,7 +3,11 @@ apiVersion: secrets.hashicorp.com/v1beta1
 kind: VaultConnection
 metadata:
   name: {{ include "app.fullname" . }}-vault-connection
-  namespace: {{ .Values.app.namespace }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.vault.vso.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   address: {{ .Values.vault.address}}
   skipTLSVerify: true

@@ -1,3 +1,4 @@
+{{- if .Values.testPod.enabled -}}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -8,7 +9,7 @@ metadata:
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-    # "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-weight": "2"
 spec:
   activeDeadlineSeconds: 20
   restartPolicy: Never
@@ -21,7 +22,7 @@ spec:
   terminationGracePeriodSeconds: 0
   containers:
     - name: dev-jq-curl-1
-      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
+      image: {{ .Values.testPod.image }}
       imagePullPolicy: IfNotPresent
       securityContext:
         runAsNonRoot: true
@@ -34,7 +35,7 @@ spec:
         - name: VAULT_ADDR
           value: {{ .Values.testPod.vault.addr | quote }}
         - name: SECRET_PATH
-          value: "{{ .Values.testPod.vault.secret.enginePathAPI }}"
+          value: {{ .Values.testPod.vault.secret.enginePathAPI | quote }}
         - name: ROLE
           value: {{ .Values.testPod.vault.role | quote }}
       command: ["/bin/sh", "-c"]
@@ -64,3 +65,4 @@ spec:
                | jq -r '.data.data | keys[] as $k | "\($k)=\(.[$k])"' \
                | tee /tmp/.env
           sleep 2
+{{- end }}

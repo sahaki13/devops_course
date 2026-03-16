@@ -12,5 +12,8 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+
 	h.Logger.Info("Healthcheck OK", "time", time.Now().Format(time.RFC3339))
 }

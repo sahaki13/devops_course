@@ -15,12 +15,13 @@ func (h *InfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := InfoResponse{
-		Service:   "echo-server",
-		Version:   h.Config.Version,
-		BuildDate: h.Config.BuildDate,
-		Hostname:  h.Config.Hostname,
-		TimeNow:   time.Now().Format(time.RFC3339),
-		UID:       os.Getuid(),
+		Service:       "echo-server",
+		Version:       h.Config.Version,
+		BuildDate:     h.Config.BuildDate,
+		Hostname:      h.Config.Hostname,
+		KubeNamespace: os.Getenv("POD_NAMESPACE"),
+		TimeNow:       time.Now().Format(time.RFC3339),
+		UID:           os.Getuid(),
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

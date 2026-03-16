@@ -7,22 +7,18 @@ addr: &vaultStsAddr "http://vault-svc.vault.svc:8200"
 serviceAccounts:
   vault:
     create: true
-    name: vault-auth
     namespace: vault
     keepResource: false
   dev:
-    create: true
-    name: vault-auth
+    create: false
     namespace: dev
     keepResource: false
   preprod:
-    create: true
-    name: vault-auth
+    create: false
     namespace: preprod
     keepResource: false
   prod:
-    create: true
-    name: vault-auth
+    create: false
     namespace: prod
     keepResource: false
 
@@ -66,6 +62,7 @@ agent:
     limits:
       cpu: 512m
       memory: 128Mi
+  fsMountPoint: /mnt
   volumeClaimTemplates:
     data:
       storageClassName: local-storage
@@ -87,7 +84,7 @@ agent:
       scripts:
         - /vault/scripts/init.sh
         - /vault/scripts/unseal.sh
-        - /vault/scripts/update_auth_method.sh
+        - /vault/scripts/upsert_auth_method.sh
         # - /vault/scripts/create_users.sh
         # - /vault/scripts/create_secrets.sh
     preStop:
@@ -114,11 +111,27 @@ services:
 
 # --- Ingress ---
 ingress:
+  className: "nginx"
   hosts:
     - host: vault.test.local
       paths:
         - path: /
           pathType: Prefix
+  tls:
+    - secretName: ""
+      enabled: false
+      hosts:
+        - ""
+      secret:  # autogen secret (fill crt and key)
+        crt: ""
+        key: ""
+    - secretName: ""
+      enabled: false  # another possible cert
+      hosts:
+        - ""
+      secret:
+        crt: ""
+        key: ""
 
 # --- ConfigMap (Vault) ---
 configMap:
@@ -126,14 +139,30 @@ configMap:
     name: vault-cm
     namespace: vault
 
+jobs:
+  image: docker.io/library/busybox:1.37.0-musl
+  backoffLimit: 1
+  removeVaultStorage:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  setupVault:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  node:
+    kubernetes.io/hostname: worker-0
+  pvNodeNames:
+    - worker-0
+
 # --- Test Pod ---
 testPod:
+  enabled: false
+  image: docker.io/pnnlmiscscripts/curl-jq:1.6-15
   name: vault-interaction-testpod
   namespace: dev
-  serviceAccountName: vault-auth
+  serviceAccountName: echo-server
   vault:
     addr: *vaultStsAddr
-    role: vault-auth
+    role: vault-auth-dev-echo-server
     secret:
       enginePathAPI: secrets/dev/echo-server/data/config
       enginePath: secrets/dev/echo-server
@@ -141,6 +170,7 @@ testPod:
       type: kv-v2
   vso:
     vaultConnectionName: vault-connection
+    staticSecretRefresh: 30s
     injectToFile: false
   delay:
     enabled: true
@@ -148,7 +178,7 @@ testPod:
 
 # --- Vault Secret Operator ---
 vso:
-  enabled: true
+  enabled: false
   port: 8080
   replicas: 1
   namespace: vso

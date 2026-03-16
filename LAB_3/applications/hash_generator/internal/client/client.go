@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,14 +30,33 @@ func NewHTTPClient(targetURL string, timeout time.Duration) *HTTPClient {
 	}
 }
 
+func (c *HTTPClient) Get(ctx context.Context, endpoint string) (*http.Response, error) {
+	fullURL, err := buildURL(c.targetURL, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.client.Do(req)
+}
+
 // post request
-func (c *HTTPClient) SendHash(payload HashPayload) (*http.Response, error) {
+func (c *HTTPClient) SendHash(payload HashPayload, endpoint string) (*http.Response, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.targetURL, bytes.NewReader(body))
+	url, err := buildURL(c.targetURL, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

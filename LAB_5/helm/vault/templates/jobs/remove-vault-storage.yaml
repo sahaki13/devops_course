@@ -1,0 +1,48 @@
+{{- if .Values.jobs.removeVaultStorage.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: remove-vault-storage-{{ now | unixEpoch }}
+  namespace: vault
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.removeVaultStorage.ttlSecondsAfterFinished | default 5 }}
+  backoffLimit: {{ .Values.jobs.backoffLimit | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: remove-vault-storage
+          image: {{ .Values.jobs.image }}
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          env:
+            - name: FS_MOUNT_POINT
+              value: {{ .Values.agent.fsMountPoint | quote }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "Starting vault storage cleanup..."
+              if [ -d "$FS_MOUNT_POINT/vault_data" ]; then
+                echo "Found $FS_MOUNT_POINT/vault_data, removing..."
+                rm -Rfv "$FS_MOUNT_POINT/vault_data"
+                echo "Cleanup completed."
+              else
+                echo "WARNING: $FS_MOUNT_POINT/vault_data not found, nothing to do."
+              fi
+          volumeMounts:
+            - name: host-mnt
+              mountPath: {{ .Values.agent.fsMountPoint }}
+              readOnly: false
+      restartPolicy: Never
+      nodeSelector:
+        {{- toYaml .Values.jobs.node | nindent 8 }}
+      volumes:
+        - name: host-mnt
+          hostPath:
+            path: {{ .Values.agent.fsMountPoint }}
+            type: Directory
+{{- end }}

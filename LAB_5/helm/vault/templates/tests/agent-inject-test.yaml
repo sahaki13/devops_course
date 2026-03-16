@@ -7,16 +7,17 @@ metadata:
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "8"
     # agent-injector annotations
     vault.hashicorp.com/agent-inject: "true"
-    vault.hashicorp.com/role: "vault-auth"  # match with vault role
-    vault.hashicorp.com/agent-inject-secret-noparse.txt: "secrets/dev/echo-server/data/config"
+    vault.hashicorp.com/role: "{{ .Values.testPod.vault.role }}"  # match with vault role
+    vault.hashicorp.com/agent-inject-secret-noparse.txt: "{{ .Values.testPod.vault.secret.enginePathAPI }}"
     vault.hashicorp.com/agent-inject-template-env: |  # range each secret
-      {{`{{- with secret "secrets/dev/echo-server/data/config" -}}
+      {{`{{- with secret .Values.testPod.vault.secret.enginePathAPI -}}
         {{- range $k, $v := .Data.data }}export {{ $k }}={{ $v }}{{"\n"}}{{- end -}}
       {{- end }}`}}
     vault.hashicorp.com/agent-inject-template-target: |  # targeted secret
-      {{`{{- with secret "secrets/dev/echo-server/data/config" -}}
+      {{`{{- with secret .Values.testPod.vault.secret.enginePathAPI -}}
         server:
           port: 8080
         spring:
@@ -42,7 +43,7 @@ spec:
   terminationGracePeriodSeconds: 0
   containers:
     - name: example-pod
-      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
+      image: {{ .Values.testPod.image }}
       command:
         - /bin/sh
         - -ec

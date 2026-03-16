@@ -22,7 +22,7 @@ spec:
       labels:
         {{- include "vault.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccounts.vault.name }}
+      serviceAccountName: {{ .Values.agent.name }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -85,7 +85,7 @@ spec:
             - name: TZ
               value: {{ .Values.agent.env.TZ | quote }}
             - name: KEYS_FILE
-              value: "/mnt/vault_data/keys"
+              value: "{{ .Values.agent.fsMountPoint }}/vault_data/keys"
             - name: SKIP_CHOWN
               value: {{ .Values.agent.env.SKIP_CHOWN | quote }}
             - name: SKIP_SETCAP
@@ -132,7 +132,7 @@ spec:
             {{- toYaml .Values.agent.resources | nindent 12 }}
           volumeMounts:
             - name: data
-              mountPath: /mnt/vault_data
+              mountPath: "{{ .Values.agent.fsMountPoint }}/vault_data"
             - name: config
               mountPath: /vault/config
             - name: scripts
@@ -156,8 +156,12 @@ spec:
                 path: create_users.sh
               - key: create_secrets.sh
                 path: create_secrets.sh
+              - key: vars.sh
+                path: vars.sh
+              - key: read_policies.sh
+                path: read_policies.sh
               - key: k8s_auth_method_upsert.sh
-                path: update_auth_method.sh
+                path: upsert_auth_method.sh
             defaultMode: 0110
   volumeClaimTemplates:
     - metadata:

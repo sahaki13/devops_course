@@ -7,13 +7,17 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "app.labels" . | nindent 4 }}
+  {{- with .Values.app.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  replicas: {{ .Values.app.replicas }}
+  replicas: {{ .Values.app.replicas | default 1 }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: {{ .Values.app.update.maxUnavailable }}
-      maxSurge: {{ .Values.app.update.maxSurge }}
+      maxUnavailable: {{ .Values.app.update.maxUnavailable | default 1 }}
+      maxSurge: {{ .Values.app.update.maxSurge | default 0 }}
   selector:
     matchLabels:
       {{- include "app.selectorLabels" . | nindent 6 }}
@@ -26,9 +30,7 @@ spec:
         {{- end }}
     spec:
       automountServiceAccountToken: false # prevent mount /run/**/secrets
-      {{- if .Values.vault.enabled }}
-      serviceAccountName: {{ .Values.vault.serviceAccountName }} # SA для чтения из vault
-      {{- end }}
+      serviceAccountName: {{ .Values.vault.serviceAccountName }} # SA для vault
       {{- with .Values.app.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -38,7 +40,9 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
-      {{- include "myhlp.vault_secrets_init_container" . | nindent 6 -}}
+      {{- if .Values.vault.restApiEnabled | default false -}}
+      {{- include "vaultApiHlp.initContainer" . | nindent 6 -}}
+      {{- end}}
       containers:
         - name: {{ include "app.fullname" . }}
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}@sha256:{{ .Values.app.image.digest }}"
@@ -57,17 +61,22 @@ spec:
               memory: {{ .Values.app.resources.limits.memory }}
               cpu: {{ .Values.app.resources.limits.cpu }}
           env:
-            {{- range .Values.app.envs }}
-            - name: {{ .name }}
-              value: {{ .value }}
-            {{- end }}
+          {{- if .Values.app.extraEnv }}
+          {{- toYaml .Values.app.extraEnv | nindent 12 -}}
+          {{- end }}
+          {{- range $key, $value := .Values.app.envs }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
           {{- if .Values.vault.vso.enabled }}
           envFrom:  # inject to env
             - secretRef:
                 name: {{ include "app.fullname" . }}-secret
           {{- end }}
           volumeMounts:
-            {{- include "myhlp.dotenv_file_mount" . | nindent 10 -}}
+            {{- if .Values.vault.restApiEnabled | default false -}}
+            {{- include "vaultApiHlp.dotenv_file_mount" . | nindent 10 -}}
+            {{- end }}
           {{- if .Values.app.probes.enabled }}
           livenessProbe:
             {{- if .Values.app.probes.liveness.enabled }}
@@ -91,4 +100,6 @@ spec:
             {{- end }}
           {{- end }}
       volumes:
-        {{- include "myhlp.volumes" . | nindent 8 -}}
+        {{- if .Values.vault.restApiEnabled | default false -}}
+        {{- include "vaultApiHlp.volumes" . | nindent 8 -}}
+        {{- end }}

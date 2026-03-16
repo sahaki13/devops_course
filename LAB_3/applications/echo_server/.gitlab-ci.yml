@@ -28,12 +28,12 @@ build:
     echo $SHELL
     # apk update && apk add --no-cache --quiet tree
 
-    # mkdir ./build && go build -ldflags="-s -w" -o ./build/echo_server ./src/main.go
+    # mkdir ./build && go build -ldflags="-s -w" -o ./build/app ./src/main.go
     ./scripts/build.sh
 
   artifacts:
     paths:
-    - ./build/echo_server
+    - ./build/app
 
 # SCA, SAST, DAST, UNIT TESTS, LINTERS, DOC GENERATOR, SECURITY + PROPRIETARY CHECKS...
 unit_test:
@@ -80,11 +80,11 @@ dockerize:
     echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
     echo "SERVICE_VERSION=$SERVICE_VERSION"
 
-    sleep 60 # dbg
+    # sleep 60 # dbg
 
     echo "COPY ARTIFACT TO DOCKER"
     docker build --provenance=false \
-                 -f Dockerfile_simple \
+                 -f Dockerfile \
                  -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest \
                  -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION \
                  -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION \

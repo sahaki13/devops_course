@@ -19,6 +19,7 @@ type Config struct {
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
 	TargetURL    string
+	ReqEndpoint  string
 	HTTPTimeout  time.Duration
 	SendInterval time.Duration
 }
@@ -36,7 +37,12 @@ func Load() *Config {
 
 	targetURL := os.Getenv("TARGET_URL")
 	if targetURL == "" {
-		targetURL = "http://localhost:3000/echo"
+		targetURL = "http://localhost:3000"
+	}
+
+	reqEndpoint := os.Getenv("REQUEST_ENDPOINT")
+	if reqEndpoint == "" {
+		reqEndpoint = "echo"
 	}
 
 	return &Config{
@@ -48,6 +54,7 @@ func Load() *Config {
 		WriteTimeout: parseDuration(os.Getenv("WRITE_TIMEOUT"), 10*time.Second),
 		IdleTimeout:  parseDuration(os.Getenv("IDLE_TIMEOUT"), 60*time.Second),
 		TargetURL:    targetURL,
+		ReqEndpoint:  reqEndpoint,
 		HTTPTimeout:  parseDuration(os.Getenv("HTTP_TIMEOUT"), 5*time.Second),
 		SendInterval: parseDuration(os.Getenv("SEND_INTERVAL"), 10*time.Second),
 	}

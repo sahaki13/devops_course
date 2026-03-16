@@ -34,7 +34,7 @@ func sendHash(logger *slog.Logger, cfg *config.Config, httpClient *client.HTTPCl
 		Source:    cfg.Hostname,
 	}
 
-	resp, err := httpClient.SendHash(payload)
+	resp, err := httpClient.SendHash(payload, cfg.ReqEndpoint)
 
 	if err != nil {
 		logger.Error("Failed to send hash", "err", err)

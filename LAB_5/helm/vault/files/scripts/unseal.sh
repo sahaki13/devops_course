@@ -13,7 +13,7 @@ if [ "$HOSTNAME" != "vault-0" ]; then
   is_sealed="true"
   until [ -f "$KEYS_FILE" ] && [ "$is_sealed" == "false" ]; do
     sleep 2 && echo "sealed"
-    is_sealed="$(vault status -address=http://vault-0.vault-svc.vault.svc:8200 | grep -i 'sealed' | awk '{print $2}')"
+    is_sealed="$(vault status -address=$VAULT_ADDR | grep -i 'sealed' | awk '{print $2}')"
   done
 fi
 

@@ -1,4 +1,4 @@
-{{- if .Values.vso.enabled -}}
+{{- if and .Values.testPod.enabled .Values.vso.enabled -}}
 ---
 apiVersion: secrets.hashicorp.com/v1beta1
 kind: VaultAuth
@@ -7,14 +7,11 @@ metadata:
   namespace: {{ .Values.testPod.namespace }}
 spec:
   vaultConnectionRef: {{ .Values.testPod.vso.vaultConnectionName }}
-  # namespace: {{ .Values.testPod.namespace }}
   method: kubernetes
   mount: kubernetes
-
   kubernetes:
-    role: {{ .Values.testPod.serviceAccountName }}
+    role: {{ .Values.testPod.vault.role }}
     serviceAccount: {{ .Values.testPod.serviceAccountName }}
-    # audiences: [""]
 ---
 apiVersion: secrets.hashicorp.com/v1beta1
 kind: VaultConnection
@@ -36,7 +33,7 @@ spec:
   type: {{ .Values.testPod.vault.secret.type }}
   mount: {{ .Values.testPod.vault.secret.enginePath }}
   path: {{ .Values.testPod.vault.secret.name }}
-  refreshAfter: 30s
+  refreshAfter: {{ .Values.testPod.vso.staticSecretRefresh }}
   destination:
     create: true
     name: {{ .Values.testPod.name }}-secret
@@ -61,6 +58,7 @@ metadata:
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "10"
 spec:
   activeDeadlineSeconds: 20
   restartPolicy: Never
@@ -73,7 +71,7 @@ spec:
   terminationGracePeriodSeconds: 0
   containers:
     - name: dev-jq-curl-1
-      image: "docker.io/pnnlmiscscripts/curl-jq:1.6-15@sha256:e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1"
+      image: {{ .Values.testPod.image }}
       imagePullPolicy: IfNotPresent
       securityContext:
         runAsNonRoot: true
@@ -98,6 +96,7 @@ spec:
         - |
           env
           echo "## ----------------------------------------------------- ##"
+          echo -e "Content of /vault/secrets/env:\n"
           cat /vault/secrets/env || true
           echo "## ----------------------------------------------------- ##"
           sleep 2

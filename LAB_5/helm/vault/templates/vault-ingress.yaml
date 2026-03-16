@@ -12,7 +12,25 @@ metadata:
   labels:
     {{- include "vault.labels" . | nindent 4 }}
 spec:
-  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- $enabledTls := list }}
+  {{- range .Values.ingress.tls }}
+    {{- if .enabled }}
+      {{- $enabledTls = append $enabledTls . }}
+    {{- end }}
+  {{- end }}
+  {{- if $enabledTls }}
+  tls:
+    {{- range $enabledTls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName | quote }}
+    {{- end }}
+  {{- end }}
   rules:
     {{- range .Values.ingress.hosts }}
     - host: {{ .host | quote }}

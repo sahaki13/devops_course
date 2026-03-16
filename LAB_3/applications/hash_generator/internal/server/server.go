@@ -25,18 +25,26 @@ type Server struct {
 func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
-	// Создаём HTTP-клиент для отправки на другой сервис
-	healthHandler := &handlers.HealthHandler{Logger: logger}
 	httpClient := client.NewHTTPClient(cfg.TargetURL, cfg.HTTPTimeout)
 
-	// Хендлер с зависимостями
+	healthHandler := &handlers.HealthHandler{
+		Logger: logger,
+	}
+
+	readyHandler := &handlers.ReadyHandler{
+		Logger:    logger,
+		TargetURL: cfg.TargetURL,
+		Client:    httpClient,
+	}
+
 	infoHandler := &handlers.InfoHandler{
 		Logger: logger,
 		Config: cfg,
 	}
 
+	mux.HandleFunc("/ready", readyHandler.ServeHTTP)
 	mux.HandleFunc("/healthcheck", healthHandler.ServeHTTP)
-	mux.HandleFunc("/", infoHandler.ServeHTTP)
+	mux.HandleFunc("/info", infoHandler.ServeHTTP)
 
 	go worker.Start(logger, cfg, httpClient)
 

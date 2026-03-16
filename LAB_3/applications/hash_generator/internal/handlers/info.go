@@ -11,14 +11,16 @@ import (
 )
 
 type InfoResponse struct {
-	Service   string `json:"service"`
-	Version   string `json:"version"`
-	BuildDate string `json:"buildDate"`
-	Hostname  string `json:"hostname"`
-	TimeNow   string `json:"timeNow"`
-	UID       int    `json:"uid"`
-	TargetURL string `json:"targetURL"`
-	Interval  string `json:"sendInterval"`
+	Service        string `json:"service"`
+	Version        string `json:"version"`
+	BuildDate      string `json:"buildDate"`
+	Hostname       string `json:"hostname"`
+	KubeNamespace  string `json:"kubeNamespace"`
+	TimeNow        string `json:"timeNow"`
+	UID            int    `json:"uid"`
+	TargetURL      string `json:"targetURL"`
+	TargetEndpoint string `json:"targetEndpoint"`
+	Interval       string `json:"sendInterval"`
 }
 
 type InfoHandler struct {
@@ -34,14 +36,16 @@ func (h *InfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := InfoResponse{
-		Service:   "hash-service",
-		Version:   h.Config.Version,
-		BuildDate: h.Config.BuildDate,
-		Hostname:  h.Config.Hostname,
-		TimeNow:   time.Now().Format(time.RFC3339),
-		UID:       os.Getuid(),
-		TargetURL: h.Config.TargetURL,
-		Interval:  h.Config.SendInterval.String(),
+		Service:        "hash-generator",
+		Version:        h.Config.Version,
+		BuildDate:      h.Config.BuildDate,
+		Hostname:       h.Config.Hostname,
+		KubeNamespace:  os.Getenv("POD_NAMESPACE"),
+		TimeNow:        time.Now().Format(time.RFC3339),
+		UID:            os.Getuid(),
+		TargetURL:      h.Config.TargetURL,
+		TargetEndpoint: h.Config.ReqEndpoint,
+		Interval:       h.Config.SendInterval.String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

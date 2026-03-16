@@ -4,7 +4,6 @@ nameOverride: ""
 fullnameOverride: "echo-server"
 
 app:
-  namespace: dev
   image:
     repository: 192.168.99.100:5050/root/echo-server
     tag: 2.3.1
@@ -33,25 +32,26 @@ app:
       path: /healthcheck
   resources:
     requests:
-      memory: 50Mi
+      memory: 25Mi
       cpu: 100m
     limits:
-      memory: 50Mi
+      memory: 25Mi
       cpu: 100m
   envs:
-    - name: TZ
-      value: Europe/Moscow
-    - name: LOG_HOME
-      value: /log
-    - name: LOG_LEVEL
-      value: info
-    - name: DOTENV_PATH
-      value: /empty/.env
+    TZ: Europe/Moscow
+    LOG_HOME: /log
+    LOG_LEVEL: info
+    # DOTENV_PATH: /empty/.env  # если сервис читает переменные из .env файла
+  extraEnv:
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
 
   initContainer:
     repository: docker.io/pnnlmiscscripts/curl-jq
     tag: 1.6-15
-    # docker inspect --format='{{index .RepoDigests 0}}' docker.io/pnnlmiscscripts/curl-jq:1.6-15
+    # To obtain digest: docker inspect --format='{{index .RepoDigests 0}}' docker.io/pnnlmiscscripts/curl-jq:1.6-15
     digest: e308d4ceab91e8d857fdf529193092766b0eca523ae0f94cdbf06d0e0bd7d8d1
     isDebug: false
 
@@ -67,11 +67,15 @@ ingress:
         - path: /
           pathType: Prefix
 
+serviceAccount:
+  create: true
+  annotations: {}
+
 vault:
-  enabled: false  # enable REST API
+  restApiEnabled: false  # init container approach
   address: http://vault-svc.vault.svc:8200
-  role: vault-auth
-  serviceAccountName: vault-auth
+  role: vault-auth-dev-echo-server
+  serviceAccountName: echo-server
   secret:
     # enginePathAPI: secrets/dev/echo-server/data/config
     enginePath: secrets/dev/echo-server
@@ -79,4 +83,5 @@ vault:
     type: kv-v2
   vso:
     enabled: true  # enable vault secret operator
+    staticSecretRefresh: 30s
     injectToFile: false

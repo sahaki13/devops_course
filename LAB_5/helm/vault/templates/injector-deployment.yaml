@@ -46,6 +46,8 @@ spec:
             runAsUser: 100
             runAsGroup: 100
           env:
+            - name: TZ
+              value: {{ .Values.agent.env.TZ | quote }}
             - name: AGENT_INJECT_LISTEN
               value: ":{{ .Values.injector.port }}"
             - name: AGENT_INJECT_LOG_LEVEL

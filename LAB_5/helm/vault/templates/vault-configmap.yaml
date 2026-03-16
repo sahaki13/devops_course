@@ -32,5 +32,11 @@ data:
   create_secrets.sh: |
     {{ .Files.Get "files/scripts/create_secrets.sh" | nindent 4 }}
 
+  vars.sh: |
+    {{ .Files.Get "files/scripts/vars.sh" | nindent 4 }}
+
+  read_policies.sh: |
+    {{ .Files.Get "files/scripts/read_policies.sh" | nindent 4 }}
+
   k8s_auth_method_upsert.sh: |
     {{ .Files.Get "files/scripts/k8s_auth_method_upsert.sh" | nindent 4 }}

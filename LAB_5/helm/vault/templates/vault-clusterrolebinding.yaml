@@ -14,11 +14,11 @@ roleRef:
   kind: ClusterRole
   name: system:auth-delegator
 subjects:
-  {{- range $key, $val := .Values.serviceAccounts }}
-  {{- if $val.create }}
+  {{- range $saName, $saConfig := .Values.serviceAccounts }}
+  {{- if $saConfig.create }}
   - kind: ServiceAccount
-    name: {{ $val.name }}
-    namespace: {{ $val.namespace }}
+    name: {{ $saName }}
+    namespace: {{ $saConfig.namespace | default $.Release.Namespace }}
   {{- end }}
   {{- end }}
 {{- end }}

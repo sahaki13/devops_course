@@ -33,6 +33,7 @@ k8s_prerequisites_packages:
   - ipvsadm # for k8s ipvs
   - netcat-traditional
   - jq
+  - yq
   - sshpass
   - ca-certificates
   - openssl

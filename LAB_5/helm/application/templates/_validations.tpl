@@ -25,23 +25,21 @@
 {{- end -}}
 
 {{- define "vault.validate" -}}
-
   {{- if eq .Release.Namespace "default" -}}
     {{- fail "\n\n[ERROR] Установка в namespace 'default' запрещена!\n" -}}
   {{- end -}}
 
-  {{- $restAPIEnabled := .Values.vault.enabled | default false -}}
+  {{- $restAPIEnabled := .Values.vault.restApiEnabled | default false -}}
   {{- $vsoEnabled := .Values.vault.vso.enabled | default false -}}
 
   {{- if and $restAPIEnabled $vsoEnabled -}}
     {{- fail `
     [ERROR] Нельзя включить Vault Secret Operator и Init Container одновременно
-    Выбери один:
-      - vault.enabled=true (Init Container REST API)
+    В true может быть только один из переключателей:
+      - vault.restApiEnabled=true (Init Container REST API)
       - vault.vso.enabled=true (Vault Secrets Operator)
     ` -}}
   {{- end -}}
-
 {{- end -}}
 
 {{- define "app.validateAll" -}}

@@ -6,12 +6,13 @@ import (
 )
 
 type InfoResponse struct {
-	Service   string `json:"service"`
-	Version   string `json:"version"`
-	BuildDate string `json:"buildDate"`
-	Hostname  string `json:"hostname"`
-	TimeNow   string `json:"timeNow"`
-	UID       int    `json:"uid"`
+	Service       string `json:"service"`
+	Version       string `json:"version"`
+	BuildDate     string `json:"buildDate"`
+	Hostname      string `json:"hostname"`
+	KubeNamespace string `json:"kubeNamespace"`
+	TimeNow       string `json:"timeNow"`
+	UID           int    `json:"uid"`
 }
 
 type InfoHandler struct {

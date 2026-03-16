@@ -29,7 +29,7 @@ func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
 
 	mux.HandleFunc("/healthcheck", healthHandler.ServeHTTP)
 	mux.HandleFunc("/echo", echoHandler.ServeHTTP)
-	mux.HandleFunc("/", infoHandler.ServeHTTP)
+	mux.HandleFunc("/info", infoHandler.ServeHTTP)
 
 	return &Server{
 		httpServer: &http.Server{

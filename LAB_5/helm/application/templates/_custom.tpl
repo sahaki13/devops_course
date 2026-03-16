@@ -1,5 +1,4 @@
-{{- define "myhlp.vault_secrets_init_container" -}}
-{{- if and .Values.vault.enabled -}}
+{{- define "vaultApiHlp.initContainer" -}}
 initContainers:
   - name: secrets-init
     image: "{{ .Values.app.initContainer.repository }}:{{ .Values.app.initContainer.tag }}@sha256:{{ .Values.app.initContainer.digest }}"
@@ -18,7 +17,7 @@ initContainers:
         {{- if .Values.app.initContainer.isDebug }}
         sleep 99999
         {{- end }}
-        secret_path="secrets/{{ .Values.app.namespace }}/{{ include "app.fullname" . }}/data/config"
+        secret_path="secrets/{{ .Release.Namespace }}/{{ include "app.fullname" . }}/data/config"
         vault_addr="{{ .Values.vault.address }}" && \
         role="{{ .Values.vault.role }}" && \
         sa_t=$(cat /run/secrets/kubernetes.io/serviceaccount/token) && \
@@ -40,19 +39,15 @@ initContainers:
       limits:
         memory: 20Mi
         cpu: 100m
-{{ end }}
 {{- end }}
 
-{{- define "myhlp.dotenv_file_mount" -}}
-{{- if .Values.vault.enabled -}}
+{{- define "vaultApiHlp.dotenv_file_mount" -}}
 - name: dotenv
   mountPath: /empty/.env
   subPath: .env
-{{ end }}
 {{- end }}
 
-{{- define "myhlp.volumes" -}}
-{{- if .Values.vault.enabled -}}
+{{- define "vaultApiHlp.volumes" -}}
 - name: dotenv
   emptyDir:
     medium: "Memory"
@@ -64,5 +59,4 @@ initContainers:
     - serviceAccountToken:
         expirationSeconds: 700
         path: token
-{{ end }}
 {{- end }}
