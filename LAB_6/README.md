@@ -92,6 +92,7 @@ http://argocd.test.local/settings/repos
 
 ![argocd_repo_connection](./docs/argocd_repo_connection.png "argocd_repo_connection")
 
+# 3)
 ## Создать Application
 ![argocd_create_application](./docs/argocd_create_application.png "argocd_create_application")
 Нажать `new app` ->

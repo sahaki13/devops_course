@@ -2,7 +2,6 @@
 
 set -e
 
-PRIVATE_KEY_PATH="${HOME}/.ssh/id_ed25519"
 ARCH="$(uname -m)"
 KERNEL_NAME="$(uname -s)"
 KUSTOMIZE_VERSION="v5.8.1"

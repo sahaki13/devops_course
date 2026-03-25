@@ -25,7 +25,7 @@ fi
 
 # GITLAB_ROOT_PASSWORD
 if ! grep -q "GITLAB_ROOT_PASSWORD=" "$ENV_FILE"; then
-    echo "GITLAB_ROOT_PASSWORD=\"$(head -c 12 /dev/random | base64)\"" >> "$ENV_FILE"
+    echo "GITLAB_ROOT_PASSWORD=\"$(head -c 16 /dev/urandom | base64 | tr -d '+/=' | head -c 16)\"" >> "$ENV_FILE"
     echo "Added GITLAB_ROOT_PASSWORD to $ENV_FILE"
 else
     echo "GITLAB_ROOT_PASSWORD already exists in $ENV_FILE"
@@ -38,3 +38,4 @@ if ! grep -q "PERSONAL_ACCESS_TOKEN=" "$ENV_FILE"; then
 else
     echo "PERSONAL_ACCESS_TOKEN already exists in $ENV_FILE"
 fi
+

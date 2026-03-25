@@ -10,9 +10,9 @@ fi
 CONFIG_FILE="/etc/gitlab-runner/config.toml"
 SESSION_SERVER_BLOCK='''
 [session_server]
-  listen_address = "runner_build_srv_1:8093"
+  # listen_address = "runner_build_srv_1:8093"
   session_timeout = 1800
-  publish_address = "runner_build_srv_1:8093"
+  # publish_address = "runner_build_srv_1:8093"
 '''
 
 if $IS_REGISTER_RUNNER; then
@@ -60,3 +60,4 @@ fi
   run \
   --user=gitlab-runner \
   --working-directory=/home/gitlab-runner
+
