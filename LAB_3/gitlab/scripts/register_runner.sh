@@ -4,21 +4,16 @@ set -e
 
 if $IS_DEBUG; then
   echo "DEBUG MODE"
-  sleep 999999
+  sleep infinity
 fi
 
+CONCURRENT_LIMIT=3
 CONFIG_FILE="/etc/gitlab-runner/config.toml"
 SESSION_SERVER_BLOCK='''
 [session_server]
-<<<<<<< HEAD
-  # listen_address = "runner_build_srv_1:8093"
-  session_timeout = 1800
-  # publish_address = "runner_build_srv_1:8093"
-=======
   # listen_address = "runner-build-srv-1:8093"
   session_timeout = 1800
   # publish_address = "runner-build-srv-1:8093"
->>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 '''
 
 if $IS_REGISTER_RUNNER; then
@@ -58,6 +53,8 @@ if $IS_REGISTER_RUNNER; then
 
     echo "$SESSION_SERVER_BLOCK" >> "$CONFIG_FILE"
   fi
+
+  sed -i "s/^concurrent = .*/concurrent = $CONCURRENT_LIMIT/" "$CONFIG_FILE"
 fi
 
 # docker inspect --format='{{.Config.Entrypoint}}' gitlab/gitlab-runner

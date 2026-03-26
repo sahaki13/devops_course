@@ -61,9 +61,6 @@ password: GITLAB_ROOT_PASSWORD field from .env
 * (Опционально) Перейти http://192.168.99.100/-/user_settings/ssh_keys и добавить публичный ssh ключ (удобнее чем http метод).
 * Создать репозиторий для вашего приложения http://192.168.99.100/projects/new#blank_project и загрузить приложение в Gitlab
 
-<<<<<<< HEAD
-## 2) Создать и запустить runner.
-=======
 ## 2) Развернуть docker-registry
 Использовать встроенное registry в gitlab мы не будем, поэтому развернем свое минималистичное.
 
@@ -99,7 +96,7 @@ http://192.168.99.100:5050/v2/_catalog
 http://192.168.99.100:5050/v2/root/echo-server/tags/list
 http://192.168.99.100:5050/v2/root/hash-generator/tags/list
 
-# get manifest
+# get manifest + digest (Docker-Content-Digest header)
 http://192.168.99.100:5050/v2/root/echo-server/manifests/3.1.0
 ```
 Затем логинимся в registry, чтобы сгенерировался файл `config.json`:
@@ -120,7 +117,6 @@ http://192.168.99.100/admin/application_settings/ci_cd
 Жмем `Add variable`
 
 ## 3) Создать и запустить runner.
->>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 
    * Перейти http://192.168.99.100:80/-/user_settings/personal_access_tokens
    * Нажать на `Add new token`
@@ -132,29 +128,18 @@ http://192.168.99.100/admin/application_settings/ci_cd
    * Убедиться, что в docker-compose.yaml `IS_REGISTER_RUNNER: false` и запустить в фоне `docker compose up -d runner`
    * Проверить что runner появился в списке http://192.168.99.100:80/admin/runners
 
-<<<<<<< HEAD
-## 3) Написать `.gitlab-ci.yml` для своего приложения
-=======
 ## 4) Написать `.gitlab-ci.yml` для своего приложения
->>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 Манифест должен включать следующие этапы:
 * `Build stage`, этап сборки
 * `Test stage`, этап тестов (unit tests, sast, codestyle, ...) можно сделать просто заглушками
 * `Dockerize stage`, этап упаковки приложения в образ и загрузки образа в registry
 
-<<<<<<< HEAD
-## 4) Запуск пайпа и проверка registry
-Запустить пайплайн `ui` -> `your project` -> `build` -> `pipelines` -> `run pipeline` дождаться завершения и sроверить что все этапы завершились без ошибок.
-
-Проверить что образ появился в registry `ui` -> `your project` -> `deploy` -> `container registry`
-=======
 Пример `.gitlab-ci.yml` манифестов в директории `applications/*`
 
 ## 5) Запуск пайпа и проверка registry
 Запустить пайплайн `ui` -> `your project` -> `build` -> `pipelines` -> `run pipeline` дождаться завершения и sроверить что все этапы завершились без ошибок.
 
 Проверить что образ появился в registry сделав запрос к API.
->>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 
 # Альтернативный вариант (Forgejo, docker regitry/Nexus, Jenkins)
 
