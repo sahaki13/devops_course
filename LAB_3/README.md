@@ -15,8 +15,7 @@ Error response from daemon: Get "http://192.168.99.100:5050/v2/": Get "http://gi
 
 тогда добавить строку `registry['token_realm'] = "192.168.99.100:80"` в конец файла ./cfg/gitlab.rb
 
-Затем перезапустить контейнер и применить конфигурацию
-
+Затем сделать полную остановку и старт контейнера с гитлабом и применить конфигурацию:
 ```
 $ docker compose down gitlab
 $ docker compose up -d gitlab
