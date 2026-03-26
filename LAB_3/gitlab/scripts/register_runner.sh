@@ -10,9 +10,15 @@ fi
 CONFIG_FILE="/etc/gitlab-runner/config.toml"
 SESSION_SERVER_BLOCK='''
 [session_server]
+<<<<<<< HEAD
   # listen_address = "runner_build_srv_1:8093"
   session_timeout = 1800
   # publish_address = "runner_build_srv_1:8093"
+=======
+  # listen_address = "runner-build-srv-1:8093"
+  session_timeout = 1800
+  # publish_address = "runner-build-srv-1:8093"
+>>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 '''
 
 if $IS_REGISTER_RUNNER; then

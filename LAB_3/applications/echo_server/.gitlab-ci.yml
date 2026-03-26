@@ -7,7 +7,7 @@ variables:
   TZ: "Europe/Moscow"
 
 .ci_vars: &ci_vars
-  image: golang:1.23.5-alpine3.21
+  image: 192.168.99.100:5050/root/golang:1.23.5-alpine3.21
   variables:
     GIT_STRATEGY: clone
   only:
@@ -70,30 +70,27 @@ dockerize:
       - version.json
   variables:
     DOCKER_BUILDKIT: 1
-    EXTERNAL_REGISTRY_ADDRESS: 192.168.99.100:5050 # чтобы не было проблем с DNS
+    EXTERNAL_REGISTRY_ADDRESS: 192.168.99.100:5050
   stage: dockerize
+  before_script: |
+    mkdir -p ~/.docker/ && cp "$DOCKER_CONFIG_JSON" ~/.docker/config.json
   script: |
+    # sleep infinity # dbg
+    # echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $EXTERNAL_REGISTRY_ADDRESS --password-stdin
+
+    # extract tag from file
     export SERVICE_VERSION=$(grep 'version' ./version.json | cut -d '"' -f4 | tr '\n' '\0')
-    # echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
-    echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $EXTERNAL_REGISTRY_ADDRESS --password-stdin
 
     echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
     echo "SERVICE_VERSION=$SERVICE_VERSION"
-
-    # sleep 60 # dbg
 
     echo "COPY ARTIFACT TO DOCKER"
     docker build --provenance=false \
                  -f Dockerfile \
                  -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest \
                  -t $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION \
-                 -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION \
                  .
 
-    # docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION
-    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION
     docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:latest
+    docker push $EXTERNAL_REGISTRY_ADDRESS/$CI_PROJECT_PATH:$SERVICE_VERSION
 
-    # echo "BUILD AGAIN"
-    # docker build -f Dockerfile_multistage -t $CI_REGISTRY_IMAGE:$SERVICE_VERSION-v2 .
-    # docker push $CI_REGISTRY_IMAGE:$SERVICE_VERSION-v2

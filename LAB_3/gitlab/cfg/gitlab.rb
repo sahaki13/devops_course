@@ -2,7 +2,11 @@
 # Admin Area → Settings → Network → Outbound requests
 gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true
 # http://gitlab/api/v4/application/settings # check current settings
+<<<<<<< HEAD
 # gitlab_rails['registry_enabled'] = false
+=======
+gitlab_rails['registry_enabled'] = false
+>>>>>>> 918cb5b (update lab3 (change default gitlab registry))
 gitlab_rails['smtp_enable'] = false
 gitlab_rails['gitlab_email_enabled'] = false
 gitlab_rails['terraform_state_enabled'] = false

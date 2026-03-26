@@ -1,7 +1,5 @@
 services:
   gitlab:
-    # image: gitlab/gitlab-ce:15.11.1-ce.0
-    # image: gitlab/gitlab-ce:17.11.7-ce.0
     image: gitlab/gitlab-ce:16.11.10-ce.0
     # image: gitlab/gitlab-ce:18.8.3-ce.0 # a lot of resources consumption
     container_name: gitlab
@@ -11,10 +9,7 @@ services:
       # gitlab_shell_ssh_port - interaction with ssh
       GITLAB_OMNIBUS_CONFIG: |
         external_url          'http://gitlab:80'
-        registry_external_url 'http://gitlab:5050'
-
-        registry_nginx['listen_port'] = 5050
-        registry_nginx['listen_https'] = false
+        registry_external_url nil
 
         letsencrypt['enable'] = false
 
@@ -32,7 +27,6 @@ services:
       - ./cfg/gitlab.rb:/etc/gitlab/gitlab.rb:ro
     ports:
       - "80:80"
-      - "5050:5050"
       - "2222:22"
     networks:
       - gitlab
@@ -44,8 +38,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 4.5G
+          cpus: '3.0'
+          memory: 3.5G
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://0.0.0.0:80/users/sign_in" ]
       interval: 25s
@@ -54,7 +48,7 @@ services:
 
   runner:
     image: gitlab/gitlab-runner:alpine-v18.8.0
-    container_name: runner_build_srv_1
+    container_name: runner-build-srv-1
     restart: always
     # user: gitlab-runner
     environment:
@@ -88,7 +82,32 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 100M
+          memory: 128M
+
+  registry:
+    image: registry:3.0.0
+    container_name: docker-registry
+    restart: always
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: true
+    volumes:
+      - /data/registry:/var/lib/registry
+      - ./.auth:/auth/htpasswd
+    ports:
+      - "5050:5000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
 
 networks:
   gitlab:
@@ -103,3 +122,4 @@ networks:
         - subnet: 192.168.100.0/24
           # gateway: 192.168.100.1
           # ip_range: 192.168.100.144/28
+
