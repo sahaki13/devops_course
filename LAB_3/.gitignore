@@ -3,3 +3,5 @@ data
 runner_cfg
 **/.git
 **/build
+jenkins/*_data
+

@@ -1,0 +1,47 @@
+# examples
+# https://github.com/jenkinsci/configuration-as-code-plugin/blob/master/demos/jenkins/jenkins.yaml
+jenkins:
+  noUsageStatistics: true
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+       - id: "${JENKINS_ADMIN_ID}"
+         password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+# registry, forgejo creds
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: docker-registry-credentials
+              username: "${REGISTRY_USERNAME}"
+              password: "${REGISTRY_PASSWORD}"
+              description: "Login for our private registry"
+          - usernamePassword:
+              scope: GLOBAL
+              id: forgejo-userpass-credentials
+              username: "${FORGEJO_ADMIN_USERNAME}"
+              password: "${FORGEJO_ADMIN_PASSWORD}"
+              description: "Token for Forgejo API & Webhooks"
+
+unclassified:
+  giteaServers:
+    servers:
+      - credentialsId: forgejo-userpass-credentials  # corresponding with credential id
+        displayName: Forgejo
+        serverUrl: "${FORGEJO_SERVER_URL}"
+        manageHooks: true
+
+jobs:
+  - script: >
+      folder('CI') {
+          description('Continious Integration folder')
+      }
+

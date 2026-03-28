@@ -1,0 +1,180 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:14.0.3
+    container_name: forgejo
+    environment:
+      TZ: Europe/Moscow
+      USER_UID: 1000
+      USER_GID: 1000
+
+      FORGEJO__security__INSTALL_LOCK: true
+
+      FORGEJO____APP_NAME: Forgejo
+      FORGEJO____APP_SLOGAN: Beyond coding. We Forge.
+      FORGEJO____RUN_USER: git
+
+      FORGEJO__lfs__ROOT_PATH: /data/git/lfs
+      FORGEJO__repository__ROOT: /data/git/repositories
+      FORGEJO__repository__DEFAULT_ENABLE_TIMETRACKING: false
+
+      # server settings
+      FORGEJO__server__OFFLINE_MODE: true
+      FORGEJO__server__DISABLE_GRAVATAR: true
+      FORGEJO__server__DOMAIN: 192.168.99.100
+      FORGEJO__server__SSH_DOMAIN: 192.168.99.100
+      FORGEJO__server__ROOT_URL: http://192.168.99.100:81
+      FORGEJO__server__HTTP_PORT: 3000
+      FORGEJO__server__SSH_PORT: 22
+
+      # db settings
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__database__PATH: /data/gitea/gitea.db
+
+      # misc features
+      FORGEJO__service__DISABLE_REGISTRATION: true
+      FORGEJO__service__SHOW_REGISTRATION_BUTTON: false
+      FORGEJO__service__ENABLE_OPENID_SIGNIN: false
+      FORGEJO__service__ENABLE_OPENID_SELF_REGISTRATION: false
+      FORGEJO__service__DISABLE_REGULAR_ORG_CREATION: true
+      FORGEJO__service__MIN_PASSWORD_LENGTH: 1
+      FORGEJO__service__PASSWORD_COMPLEXITY: off
+      FORGEJO__cron__update_checker__ENABLED: false
+
+      # logs
+      FORGEJO__log__ROOT_PATH: /data/gitea/log
+
+      # admin creds (for script)
+      FORGEJO_ADMIN_USERNAME: ${FORGEJO_ADMIN_USERNAME}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+      FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL}
+    restart: always
+    volumes:
+      - ./forgejo_data:/data
+      - ./scripts/forgejo/create_admin_user.sh:/usr/local/bin/create_admin_user.sh:ro
+      - ./scripts/forgejo/generate_token.sh:/usr/local/bin/generate_token.sh:ro
+    ports:
+      - "81:3000"
+      - "2222:22"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://0.0.0.0:3000/api/healthz" ]
+      start_period: 20s
+      interval: 15s
+      timeout: 2s
+      retries: 3
+
+  jenkins:
+    image: jenkins/jenkins:2.541.3-lts
+    container_name: jenkins
+    restart: always
+    privileged: true
+    user: root
+    environment:
+      TZ: Europe/Moscow
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false -Dhudson.model.UpdateCenter.never=true -Djenkins.telemetry.enabled=false"
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+
+      REGISTRY_USERNAME: ${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
+
+      FORGEJO_ADMIN_USERNAME: ${FORGEJO_ADMIN_USERNAME}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+      FORGEJO_SERVER_URL: ${FORGEJO_SERVER_URL}
+
+      CASC_JENKINS_CONFIG: /var/jenkins_home/jenkins_cfg.yaml
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # install plugins first
+        if [ -f /usr/share/jenkins/ref/plugins.txt ]; then
+          echo "Installing plugins..."
+            CMD_TIMEOUT="2m"
+            timeout "$$CMD_TIMEOUT" jenkins-plugin-cli --verbose --plugin-file /usr/share/jenkins/ref/plugins.txt
+            EXIT_CODE=$$?
+            if [ $$EXIT_CODE -eq 124 ]; then
+              printf "%s\n\n" ">>> Plugin installation timed out after $$CMD_TIMEOUT!"
+              exit 1
+            elif [ $$EXIT_CODE -eq 0 ]; then
+              printf "%s\n\n" ">>> Plugin installation OK!"
+              # jenkins-plugin-cli --list
+            else
+              printf "%s\n\n" ">>> Plugin installation failed with exit code: $$EXIT_CODE"
+              exit 1
+            fi
+        fi
+
+        # after run jenkins
+        echo "Starting Jenkins..."
+        /usr/local/bin/jenkins.sh
+    volumes:
+      - ./jenkins_data/:/var/jenkins_home
+      - ./cfg/jenkins_cfg.yaml:/var/jenkins_home/jenkins_cfg.yaml
+      # /usr/share/jenkins/ref/plugins
+      - ./cfg/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
+      - /usr/bin/docker:/usr/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "82:8080"
+      - "50000:50000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1024M
+    healthcheck:
+      test: [ "CMD", "curl", "-L", "-f", "http://0.0.0.0:8080/health" ]
+      start_period: 40s
+      interval: 10s
+      timeout: 2s
+      retries: 5
+
+  registry:
+    image: registry:3.0.0
+    container_name: registry
+    restart: always
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: true
+      OTEL_TRACES_EXPORTER: none
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      REGISTRY_LOG_LEVEL: warn
+    volumes:
+      - /data/registry:/var/lib/registry
+      - ./.registry_auth:/auth/htpasswd
+    ports:
+      - "5050:5000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5M"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    healthcheck:
+      test: [ "CMD", "wget", "-qS", "--spider", "http://0.0.0.0:5001/metrics" ]
+      start_period: 5s
+      interval: 10s
+      timeout: 2s
+      retries: 3
+

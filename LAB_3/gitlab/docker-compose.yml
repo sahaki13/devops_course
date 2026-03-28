@@ -13,7 +13,7 @@ services:
 
         letsencrypt['enable'] = false
 
-        logging['logrotate_size'] = "20M"
+        logging['logrotate_size'] = "5M"
         logging['logrotate_rotate'] = 5
         gitlab_rails['gitlab_shell_ssh_port'] = 2222
 
@@ -42,9 +42,10 @@ services:
           memory: 3.5G
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://0.0.0.0:80/users/sign_in" ]
+      start_period: 80s
       interval: 25s
-      timeout: 10s
-      retries: 30
+      timeout: 2s
+      retries: 3
 
   runner:
     image: gitlab/gitlab-runner:alpine-v18.8.0
@@ -86,28 +87,38 @@ services:
 
   registry:
     image: registry:3.0.0
-    container_name: docker-registry
+    container_name: registry
     restart: always
     environment:
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
       REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
       REGISTRY_STORAGE_DELETE_ENABLED: true
+      OTEL_TRACES_EXPORTER: none
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      REGISTRY_LOG_LEVEL: warn
     volumes:
       - /data/registry:/var/lib/registry
-      - ./.auth:/auth/htpasswd
+      - ./.registry_auth:/auth/htpasswd
     ports:
       - "5050:5000"
     logging:
       driver: "json-file"
       options:
-        max-size: "10M"
+        max-size: "5M"
         max-file: "5"
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 128M
+    healthcheck:
+      test: [ "CMD", "wget", "-qS", "--spider", "http://0.0.0.0:5001/metrics" ]
+      start_period: 5s
+      interval: 10s
+      timeout: 2s
+      retries: 3
 
 networks:
   gitlab:

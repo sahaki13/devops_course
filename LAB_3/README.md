@@ -1,13 +1,14 @@
-# ЛАБОРАТОРНАЯ №3. Continuous Integration. Gitlab
+# ЛАБОРАТОРНАЯ №3. SCM, Continuous Integration. (Gitlab, Jenkins)
 
 ## Docs
 
 * [Gitlab docs](https://docs.gitlab.com/)
 * [Runner creation](https://docs.gitlab.com/tutorials/automate_runner_creation)
+* [Forgejo installation](https://forgejo.org/docs/next/admin/installation/docker/)
 
 ## Возможные ошибки при выполнении задания
 
-Если на этапе `dockerize` при выполнении `docker login` возникает ошибка
+Если на этапе `dockerize` при команде `docker login` возникает ошибка
 
 ```
 Error response from daemon: Get "http://192.168.99.100:5050/v2/": Get "http://gitlab:80/jwt/auth?account=gitlab-ci-token&client_id=docker&offline_token=true&service=container_registry": dial tcp: lookup gitlab: no such host
@@ -24,19 +25,26 @@ $ docker compose up -d gitlab
 $ docker exec gitlab gitlab-ctl reconfigure
 ```
 
-# Первый вариант (Gitlab)
+##
+Цель задания подготовить пайплайн в CI системе для сборки своих сервисов и загрузке их в registry.
 
-## 1) Развернуть Gitlab
-Подключиться по ssh к ВМ master-0.
+Второй вариант выбирать предпочтительнее т.к гибкий, быстро работает и запускается, мало потребляет ресурсов.<br>Для слабых систем, с <=8 Gb RAM только второй вариант.
 
+## Предварительные действия
 Добавить файл `daemon.json` в `/etc/docker/` и перезапустить докер.
 ```
 $ su -
-# cp /home/$(id -un 1000)/work/devops_course/LAB_3/gitlab/daemon.json /etc/docker/daemon.json
+# cp /home/$(id -un 1000)/work/devops_course/LAB_3/daemon.json /etc/docker/daemon.json
 # systemctl restart docker.service
 # exit
 ```
-Перейти в директорию с заданием
+
+
+# Первый вариант (Gitlab)
+
+## 1) Развернуть Gitlab
+Перейти в директорию gitlab
+
 ```
 $ cd ~/work/devops_course/LAB_3/gitlab
 ```
@@ -61,10 +69,10 @@ password: GITLAB_ROOT_PASSWORD field from .env
 * (Опционально) Перейти http://192.168.99.100/-/user_settings/ssh_keys и добавить публичный ssh ключ (удобнее чем http метод).
 * Создать репозиторий для вашего приложения http://192.168.99.100/projects/new#blank_project и загрузить приложение в Gitlab
 
-## 2) Развернуть docker-registry
+## 2) Развернуть Registry
 Использовать встроенное registry в gitlab мы не будем, поэтому развернем свое минималистичное.
 
-По умолчанию в репозитории лежит зашифрованный файл `.auth` для `docker-registry`, creds:
+По умолчанию в репозитории лежит зашифрованный файл `.registry_auth` для `docker-registry`, creds:
 ```
 user: admin
 password: pass
@@ -75,6 +83,11 @@ htpasswd -Bbn <user> <pass> > .auth
 ```
 Утилита требует установки пакета `apache2-utils` (debian based distro).
 Логин и пароль можно оставить по умолчанию и не менять.
+
+Для развертывания выполнить команду:
+```
+$ docker compose up -d registry
+```
 
 Это минимальный registry, у него нету интегрированного UI, смотреть содержимое можно через API.<br>
 Для нас достаточно смотреть список загруженных образов и их тегов, изначально он будет пустым.<br>После запуска, можно сделать проверку все ли корректно развернулось:
@@ -143,10 +156,99 @@ http://192.168.99.100/admin/application_settings/ci_cd
 
 # Альтернативный вариант (Forgejo, docker regitry/Nexus, Jenkins)
 
-TODO
+## 1) Развернуть Forgejo
+
+Перейти в директорию jenkins.
+```
+$ cd ~/work/devops_course/LAB_3/jenkins
+```
+В файлe `.env` указаны переменные по умолчанию, можно не менять.
+
+Выполнить команду для развертывания SCM:
+```
+$ docker compose up -d forgejo
+```
+
+Если инициализация прошла успешно, SCM будет доступна по адресу:<br>
+[http://192.168.99.100:81/](http://192.168.99.100:81/)
+
+После инициализации создать пользователя:
+```
+$ docker exec -u 1000:1000 forgejo create_admin_user.sh
+```
+
+Добавить ssh ключ и запушить свои репозитории с исходным кодом в Forgejo.
+
+## 2) Развернуть Registry
+
+Весь процесс установки описан в варианте для Gitlab.
+
+## 3) Развернуть Jenkins
+
+`Jenkins` будем разворачивать минимальный, только необходимые плагины.<br>
+Сборка будет на мастер узле в docker, без дополнительных `Jenkins agents`.<br>
+
+Для развертывания выполнить команду:
+```
+$ docker compose up -d jenkins
+```
+
+Все максимально автоматизировано.
+Плагины, пользователь, интеграции, все настраивается автоматически при первом запуске.
+
+Если инициализация прошла успешно, Jenkins будет доступен по адресу:<br>
+[http://192.168.99.100:82/](http://192.168.99.100:82/)
+
+## 4) Написать манифест и выполнить сборку своего сервиса
+
+В Jenkins используется `scripted` и `DSL` подходы или их микс.<br>
+В директории есть сборочный файл `build.groovy`, можете взять его за основу, чтобы создать CI для своего сервиса.<br>
+Запуск джоб мануальный, сборки по триггерам можно не настраивать.
+
+После авторизации перейти в:<br>
+[http://192.168.99.100:82/job/CI/](http://192.168.99.100:82/job/CI/)<br>
+
+Нажать `New Item`<br>
+Ввести имя джобы для сборки вашего сервиса в поле `Enter an item name`<br>
+Выбрать `Pipeline` -> `Ok`<br>
+В `Pipeline script` скопировать содержимое файла `build.groovy`, предварительно поменяв манифест под свой сервис<br>
+Затем нажать `Save`<br>
+Выйти из конфигурации джобы и нажать на `Build now`.<br>
+
+Смотреть лог можно нажав на номер задачи, затем `Console Output`.<br>
+Если джоба падает с ошибками, то смотреть лог и разбираться что не так.<br>
+
+Ниже показан пример успешных сборок и сборок с ошибками на этапах:
+![jenkins_builds](./docs/jenkins_builds.png "jenkins_builds")
+
+После можно проверить registry на наличие в нем собранного образа.<br>
+Также добавлен этап, который делает запрос к API registry, чтобы смотреть сразу в логе.
+![jenkins_registry_api_log](./docs/jenkins_registry_api_log.png "jenkins_registry_api_log")
+
+## Перенос образов в локальное registry
+
+С помощью утилиты `skopeo` можно переносить образы из `public registry` в свое `private registry`:
+
+Установить пакет:
+```
+# apt install skopeo --no-install-recommends --no-install-suggests
+```
+
+Указываем сначала `source` откуда скачивать, затем `destination` куда загружать.<br>Есть различные опции, например как в примере ниже (могут понадобиться права суперпользователя):
+```shell
+# --src-creds="<user>:<pass>"
+skopeo copy \
+  --override-os=linux \
+  --override-arch=amd64 \
+  --dest-tls-verify=false \
+  --dest-creds=<user>:<pass> \
+  docker://busybox:1.37.0-musl \
+  docker://192.168.99.100:5050/busybox:1.37.0-musl
+```
+Таким образом можно зеркалировать docker repository в свое registry.
 
 ## При показе выполненного задания
-   * Продемонстрировать успешное развертывание **Gitlab** + **runner**
-   * Составить **.gitlab-ci.yml** манифест. Собрать приложение несколько раз с разными тегами (нужно внести какие-то изменения в ваше приложение), запустить пайплайн и дождаться окончания сборки
+   * Продемонстрировать успешное развертывание выбранных инструментов
+   * Написать сборочный манифест. Собрать приложение несколько раз с разными тегами (нужно внести какие-то изменения в ваше приложение), запустить пайплайн и дождаться окончания сборки
    * Запустить собранные образы на master-0 и продемонстрировать отличия в версиях образов (например отличается лог при запуске/работе сервиса)
 
