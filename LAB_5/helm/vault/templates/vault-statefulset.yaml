@@ -1,3 +1,5 @@
+{{- if .Values.agent.enabled }}
+
 {{ include "vault.validate" . }}
 
 apiVersion: apps/v1
@@ -164,12 +166,7 @@ spec:
                 path: upsert_auth_method.sh
             defaultMode: 0110
   volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        storageClassName: {{ .Values.agent.volumeClaimTemplates.data.storageClassName }}
-        accessModes:
-          {{- toYaml .Values.agent.volumeClaimTemplates.data.accessModes | nindent 10 }}
-        resources:
-          requests:
-            storage: {{ .Values.agent.volumeClaimTemplates.data.size }}
+    {{- toYaml .Values.agent.volumeClaimTemplates | nindent 4 }}
+
+{{- end }}
+

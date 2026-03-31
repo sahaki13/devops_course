@@ -1,0 +1,248 @@
+apiVersion: 1
+
+# List of contact points
+contactPoints:
+  - orgId: 1
+    name: telegram-alerts
+    receivers:
+      - uid: telegram_alerts
+        type: telegram
+        settings:
+          # change it to yours
+          bottoken: 0000000000:xxxxxxxxxxxxxxxxxxxxx
+          # change it to yours
+          chatid: "-10011111111"
+          disable_notification: false
+          disable_web_page_preview: false
+          protect_content: false
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: custom-webhook-handler
+    receivers:
+      - uid: local_webhook_handler
+        type: webhook
+        settings:
+          url: http://192.168.1.121:5000/alerts
+          httpMethod: POST
+          maxAlerts: 10
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: custom-webhook-handler # main reciever
+    group_by: ['alertname', 'grafana_folder', 'instance']
+    # notification_settings block override timeouts below
+    group_wait: 10s
+    group_interval: 15s
+    repeat_interval: 30s
+
+    routes:
+      - receiver: custom-webhook-handler
+        object_matchers:
+          - ["alertname", "=~", ".*"]
+        continue: true
+
+      - receiver: telegram-alerts
+        object_matchers:
+          - ["alertname", "=~", ".*"]
+        continue: true
+
+# List of rule groups to import or update
+groups:
+  - orgId: 1
+    name: eval
+    folder: alerts
+    interval: 10s
+    rules:
+      # trigger if cpu load >70% for any node within 30sec
+      - uid: bek754iw4b1fkb
+        title: high CPU usage
+        condition: B
+        for: 15s
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ printf \"%.2f\" $values.A.Value }}%"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics_ds
+            model:
+              editorMode: code
+              expr: |
+                100 * (1 - avg by (instance)
+                  (rate(node_cpu_seconds_total{job="node-exporter", mode="idle"}[$__rate_interval])))
+              instant: true
+              legendFormat: "{{instance}}"
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [50]
+                    type: gt
+                  reducer:
+                    type: max
+                  type: query
+              expression: A
+              refId: B
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        isPaused: false
+        # notification_settings:
+        #   receiver: telegram-alerts
+        #   group_wait: 10s
+        #   group_interval: 15s
+        #   repeat_interval: 30s
+
+      - uid: fek77cd21lddse
+        title: high DISK usage
+        condition: B
+        for: 15s
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk {{ $labels.device }} is {{ printf \"%.2f\" $values.A.Value }}%"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics_ds
+            model:
+              editorMode: code
+              expr: |
+                100 * (1 -
+                  node_filesystem_avail_bytes{
+                    job="node-exporter",
+                    fstype=~"ext4|xfs|btrfs",
+                    device!~"tmpfs|overlay|squashfs",
+                    mountpoint="/"
+                  }
+                  /
+                  node_filesystem_size_bytes{
+                    job="node-exporter",
+                    fstype=~"ext4|xfs|btrfs",
+                    device!~"tmpfs|overlay|squashfs",
+                    mountpoint="/"
+                  }
+                )
+              instant: true
+              legendFormat: "{{instance}}"
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [70]
+                    type: gt
+                  reducer:
+                    type: max
+                  type: query
+              expression: A
+              refId: B
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        isPaused: false
+        # notification_settings:
+        #   receiver: telegram-alerts
+        #   group_wait: 10s
+        #   group_interval: 15s
+        #   repeat_interval: 30s
+
+      - uid: cek78n1t1i8e8e
+        title: high RAM usage
+        condition: B
+        for: 15s
+        annotations:
+          summary: "High RAM usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ printf \"%.2f\" $values.A.Value }}%"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics_ds
+            model:
+              editorMode: code
+              expr: |
+                (node_memory_MemTotal_bytes{job="node-exporter"} -
+                 node_memory_MemAvailable_bytes{job="node-exporter"}) /
+                 node_memory_MemTotal_bytes * 100
+              instant: true
+              legendFormat: "{{instance}}"
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [85]
+                    type: gt
+                  reducer:
+                    type: max
+                  type: query
+              expression: A
+              refId: B
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        isPaused: false
+        # notification_settings:
+        #   receiver: telegram-alerts
+        #   group_wait: 10s
+        #   group_interval: 15s
+        #   repeat_interval: 30s
+
+      - uid: bek7hmat2nxmoa
+        title: pod restarts
+        condition: B
+        for: 5m
+        annotations:
+          summary: "Pod restarts detected"
+          description: "Pod {{ $labels.pod }} in {{ $labels.namespace }} restarted {{ $value }} times"
+        labels:
+          severity: warning
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics_ds
+            model:
+              editorMode: code
+              expr: |
+                # Сколько рестартов произошло за последние 5 минут:
+                sum by (pod, namespace) (
+                  increase(kube_pod_container_status_restarts_total{job="kube-state-metrics", container!=""}[5m])
+                ) > 0
+              instant: true
+              legendFormat: "{{namespace}}/{{pod}}"
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  reducer:
+                    type: max
+                  type: query
+              expression: A
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        isPaused: false
+        # notification_settings:
+        #   receiver: telegram-alerts
+        #   group_wait: 10s
+        #   group_interval: 15s
+        #   repeat_interval: 30s
+

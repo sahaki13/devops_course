@@ -61,3 +61,4 @@ vault write auth/userpass/users/readonly \
       policies=kv-readonly-access \
       default_lease_ttl=1h \
       max_lease_ttl=1h
+

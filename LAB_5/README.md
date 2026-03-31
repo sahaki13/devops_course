@@ -22,7 +22,7 @@
 
 Утилита `kubectl` и `helm` уже должна быть установлена и настроена в лаб. №4. Чтобы не писать команду целиком `kubectl`, можно использовать alias `k`.
 
-# 1)
+# 1) Разобраться с kubernetes манифестами
 В директории `examples` есть примеры манифестов.
 В них используются самые основные и необходимые абстракции/контрóллеры k8s:
 
@@ -32,61 +32,91 @@
 * replicaset
 * deployment
 
-   Поэтому вам нужно проанализировать и разобраться с их синтаксисом, затем исправить для своего окружения и приложения.
+ Поэтому вам нужно проанализировать и разобраться с их синтаксисом, затем исправить для своего окружения и приложения.
 
-   После исправлений зайти на master-0 и попробовать запустить манифесты, самый простой способ с помощью команд:
+ После исправлений зайти на master-0 и попробовать запустить манифесты, самый простой способ с помощью команд:
 
 ```
 $ k apply -f <path_to_manifest> # применить конфигурацию
 $ k delete -f <path_to_manifest> # удалить созданные ресурсы
 ```
 
-   Для ознакомления сделать all-in-one deployment содержащий service, pod, ns, rs.
+Для ознакомления с kubernetes компонентами сделать all-in-one deployment содержащий service, pod, rs.
 
-   После развертывания сделать запросы к своему сервису, убедиться что приходит ответ.
+После развертывания сделать запросы к своему сервису, убедиться что приходит ответ.
 
-# 2)
+# 2) Развернуть Vault
 Развернуть систему хранения секретов `vault` и разобраться с этим инструментом. Hастроить, добавить секреты, получить секреты и продемонстрировать что они получены
-(например зайти в pod и посмотреть содержимое .env файла или env переменных)
+(например зайти в pod и посмотреть содержимое `.env` файла или `environment variables`)
 
-## На master-0 перейти в директорию с chart
+#### На master-0 перейти в директорию с vault chart
 ```
 $ cd ~/work/LAB_5/helm/vault
 ```
 
-## Запустить сценарий (создаст ns, директорию на fs и pv)
+#### Создать namespace
 ```
-./scripts/setup_vault.sh
+$ k create ns vault
 ```
 
-## Установить chart и дождаться инициализации
+#### Запустить сценарий для создания pv
 ```
-$ helm upgrade --install -n vault vault .
+$ ./scripts/persistent_volumes.sh createPv
+```
+
+#### Установить chart и дождаться инициализации
+```
+$ helm upgrade --install -n vault vault --set agent.enabled=true .
 $ k logs -n vault pods/vault-0 -f
 ```
 
-## Зайти в под и запустить сценарии (предварительно поменять значения на свои ./helm/templates/configmap.yaml)
-```
-$ k exec -it -n vault vault-0 -- /bin/sh
-$ /vault/scripts/create_users.sh
-$ /vault/scripts/create_secrets.sh
-$ /vault/scripts/upsert_auth_method.sh
-```
-
-## Сгенерированные keys и root token
+#### Посмотреть сгенерированные keys и root token можно так:
 ```
 $ k exec -it -n vault vault-0 -- /bin/sh -c "cat /mnt/vault_data/keys"
 ```
 
-## Добавить к себе на хост запись в /etc/hosts и перейти по адресу для проверки
+## Создать пользователей и секреты
+
+Для автоматизации созданы сценарии взимодействия с `vault` через cli.
+
+Добавить свои сервисы в `APPLICATIONS` `vars.sh`.<br>
+
+Зайти в под:
+```
+$ k exec -it -n vault vault-0 -- /bin/sh
+```
+
+Создать пользователей:
+```
+$ /vault/scripts/create_users.sh
+```
+
+Создать секреты (будет сгенерированы случайные секреты):
+```
+$ /vault/scripts/create_secrets.sh
+```
+
+Настроить `auth` метод для k8s:
+```
+$ /vault/scripts/upsert_auth_method.sh
+```
+
+## Проверка
+
+Добавить на хост запись в /etc/hosts
 ```
 192.168.99.200 vault.test.local
 ```
 
-Если все ок, то в UI будет видно созданные секреты.
+Открыть [http://vault.test.local](http://vault.test.local/)<br>
+Ввести root token или креды от созданного пользователя (admin, admin).<br>
+Если все ок, то в UI будет видно автоматически созданные секреты.<br>
 
-# 3)
-Выбрать один из способов для получения секретов из `vault`, после проверить работоспособность для выбранного способа с помощью тестов (тот способ который выбрали на этом этапе, использовать в п.4)
+Найти в списке движок и секрет для своего сервиса, поменять переменные на свои.
+
+# 3) Настроить возможность получения секретов в pod
+
+Выбрать один из способов получения секретов из `vault`, после проверить работоспособность для выбранного способа с помощью тестов (тот способ который выбрали на этом этапе, использовать в п.4)
 
   Есть три варианта получения секретов из `vault`:
 * `REST API` реализация на основе собственного `init container` # inject только в файл, невозможен inject в env без изменения entrypoint
@@ -96,7 +126,7 @@ $ k exec -it -n vault vault-0 -- /bin/sh -c "cat /mnt/vault_data/keys"
 !!В примере чарта `application` на данный момент реализован `REST API` и `VSO`!!
 
 ## REST API Init Container
-#### Для тестов включен по умолчанию
+Для тестов включен по умолчанию
 
 ## Vault Agent Injector (реализация только в tests chart vault)
 
@@ -114,32 +144,44 @@ certs:
   caBundle: <ca.crt_helm_render>
 injector.enabled: true
 ```
-#### Сделать helm upgrade
+#### Сделать helm upgrade для включения injector
 ```
-$ helm upgrade --install -n vault vault ./helm/vault
+$ helm upgrade --install -n vault vault --set injector.enabled=true ./helm/vault
 ```
 
-## Vault Secret Operator
+## Vault Secret Operator (рекомендуемый способ)
 
-#### Применить CRD
+#### Применить CRD:
 ```
 $ k apply -k ./vault-secrets-operator/
 ```
-#### Создать ns
+#### Создать ns:
 ```
 $ k create ns vso
 ```
-#### Сделать helm upgrade
+#### Сделать helm upgrade для включения vso:
 ```
-$ helm upgrade --install --set vso.enabled=true -n vault vault ./helm/vault
+$ helm upgrade --install --set vso.enabled=true -n vault vault .
+```
+#### Можно также проверить логи:
+```
+k logs -n vso pods/vault-secrets-operator-<hash> -f
 ```
 
+## Тесты получения секретов
 
-## Запуск тестов для проверки получения секретов в pod (предварительно убрать лишние тесты из списка в скрипте)
+Предварительно убрать лишние тесты из списка в скрипте `run_tests.sh`.
+
+Включить тесты:
 ```
-$ helm upgrade --install --set testPod.enabled=true -n vault vault ./helm/vault
+$ helm upgrade --install --set testPod.enabled=true --set vso.enabled=true -n vault vault .
+```
+
+Запустить тесты:
+```
 $ ./scripts/run_tests.sh
 ```
+
 Успешный лог должен быть примерно таким, видны переменные полученные из `vault`
 ![tests_success](./docs/tests_success.png "tests_success")
 
@@ -154,11 +196,11 @@ $ echo $(cat /var/run/secrets/kubernetes.io/serviceaccount/token) | cut -d '.' -
 $ helm uninstall -n vault vault
 ```
 
-#### Полная очистка chart, pv, pvc, ns и все постоянные данные
+#### Полная очистка chart, pv, pvc, ns
 ```
 $ helm uninstall -n vault vault
+$ ./scripts/persistent_volumes.sh deletePv
 $ k delete ns vault
-$ ./scripts/cleanup_vault_storage.sh
 ```
 
 #### Если pv зависло в статусе terminating при удалении (обычно если осталось pvc), тогда
@@ -166,15 +208,15 @@ $ ./scripts/cleanup_vault_storage.sh
 $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 ```
 
-# 4)
+# 4) Запуск сервиса с помощью Helm
 Запустить helm chart `./helm/application` для своего собственного сервиса, предварительно поменяв значения под свои. Или создать свой чарт с нуля.
 
-## Поправить values в чарте
+#### Поправить values в чарте для своего сервиса:
 ```
 ./helm/application/values.yaml
 ```
 
-## Добавить к себе на хост записи в /etc/hosts (<service_name> поменять на свое имя сервиса)
+#### Добавить к себе на хост записи в /etc/hosts (<service_name> поменять на свое имя сервиса):
 ```
 192.168.99.200 <service_name>.test.local
 192.168.99.200 <service_name>.dev.local
@@ -182,10 +224,19 @@ $ k patch pv vault-pv-0 -p '{"metadata":{"finalizers":null}}'
 192.168.99.200 <service_name>.prod.local
 ```
 
-## Запустить чарт и попробовать выполнить запросы к своему сервису
+#### Запустить чарт и попробовать выполнить запросы к своему сервису
 ```
-$ helm upgrade --install -n dev <service_name> ./helm/application
-curl http://<service_name>.test.local
+$ helm upgrade --install -n dev <release_name> -f ./values-dev.yaml ./helm/application
+```
+
+#### Проверить статус chart:
+```
+$ helm ls -n <ns>
+```
+
+#### Удалить chart:
+```
+$ helm uninstall -n <ns> <release_name>
 ```
 
 ## Полезные команды helm
@@ -269,9 +320,8 @@ k run dbg-pod --rm -it --restart=Never --image=docker.io/pnnlmiscscripts/curl-jq
 ```
 
 ## При показе выполненного задания
-* Запустить deployment и сделать запросы к сервису
-* Продемонстрировать успешную настройку и доступ к vault, созданные секреты к своему сервису
-* Запустить helm чарт для сервиса, продемонстрировать что секреты были
-  получены из vault и успешно прочитаны сервисом.
+* Запустить сервис без `helm` через единый манифест `deployment` + `service` и сделать запросы к сервису.
+* Продемонстрировать успешную настройку и доступ к `vault`, также созданные секреты для своего сервиса.
+* Запустить `helm chart` для своего сервиса, продемонстрировать что секреты были получены из vault и успешно прочитаны сервисом.
   (например прочесть файл с переменными окружения или забрать из environment и вывести прочитанные переменные при запросе к отдельному endpoint сервиса).
 

@@ -17,3 +17,4 @@ else
 
   vault operator init -key-shares=6 -key-threshold=3 > "$KEYS_FILE"
 fi
+

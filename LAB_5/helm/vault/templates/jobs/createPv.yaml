@@ -1,0 +1,133 @@
+{{- if .Values.jobs.createPv.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-pv-{{ now | unixEpoch }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.createPv.ttlSecondsAfterFinished | default 5 }}
+  backoffLimit: {{ .Values.jobs.backoffLimit | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: create-pv
+          image: {{ .Values.jobs.image }}
+          securityContext:
+            runAsUser:  0
+            runAsGroup: 0
+          env:
+            - name: FS_MOUNT_POINT
+              value: "{{ .Values.agent.fsMountPoint }}/vault_data"
+          command: [ "/bin/sh", "-ec" ]
+          args:
+            - |
+              if [ ! -d "$FS_MOUNT_POINT" ]; then
+                mkdir -pv "$FS_MOUNT_POINT"
+                chown --verbose -R 100:1000 "$FS_MOUNT_POINT"
+                echo -e "[ INFO ] Directory created!\nDONE"
+              else
+                echo "[ INFO ] directory $FS_MOUNT_POINT already exists"
+              fi
+          volumeMounts:
+            - name: host-mnt
+              mountPath: {{ .Values.agent.fsMountPoint }}
+      restartPolicy: Never
+      # Привязываем Job к конкретной ноде, где будет располагаться PV
+      nodeSelector:
+        {{- toYaml .Values.jobs.node | nindent 8 }}
+      volumes:
+        - name: host-mnt
+          hostPath:
+            path: {{ .Values.agent.fsMountPoint }}
+            type: Directory
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+  annotations:
+    "helm.sh/resource-policy": keep
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+--- # Vault raft 1
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vault-pv-0
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  capacity:
+    storage: 256Mi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: vault
+    name: data-vault-0
+  accessModes: [ ReadWriteOnce ]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: "{{ .Values.agent.fsMountPoint }}/vault_data" # указываем путь до хранения данных на vm filesystem
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                {{- toYaml .Values.jobs.pvNodeNames | nindent 16 }} # указываем свой hostname для 1 рабочего узла
+# --- # Vault raft 2
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: vault-pv-1
+# spec:
+#   capacity:
+#     storage: 512Mi
+#   volumeMode: Filesystem
+#   claimRef:
+#     namespace: vault
+#     name: data-vault-1
+#   accessModes: [ ReadWriteOnce ]
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: local-storage
+#   local:
+#     path: "{{ .Values.agent.fsMountPoint }}/vault_data"
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: kubernetes.io/hostname
+#               operator: In
+#               values:
+#                 - 'worker-1' # указываем свой hostname для 2 рабочего узла
+
+# --- # Vault raft 3
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: vault-pv-2
+# spec:
+#   capacity:
+#     storage: 512Mi
+#   volumeMode: Filesystem
+#   claimRef:
+#     namespace: vault
+#     name: data-vault-2
+#   accessModes: [ ReadWriteOnce ]
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: local-storage
+#   local:
+#     path: "{{ .Values.agent.fsMountPoint }}/vault_data"
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: kubernetes.io/hostname
+#               operator: In
+#               values:
+#                 - 'worker-2' # указываем свой hostname для 3 рабочего узла
+{{- end }}
+

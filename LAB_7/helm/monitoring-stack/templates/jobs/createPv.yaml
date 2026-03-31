@@ -1,0 +1,118 @@
+{{- if .Values.jobs.createPv.enabled | default false }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-pv-{{ now | unixEpoch }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.createPv.ttlSecondsAfterFinished | default 5 }}
+  backoffLimit: {{ .Values.jobs.backoffLimit | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: create-pv
+          image: {{ .Values.jobs.image }}
+          securityContext:
+            runAsUser:  0
+            runAsGroup: 0
+          env:
+            - name: FS_MOUNT_POINT_VICTORIA
+              value: "{{ .Values.global.fsMountPoint }}/victoria_data"
+            - name: FS_MOUNT_POINT_GRAFANA
+              value: "{{ .Values.global.fsMountPoint }}/grafana_data"
+          command: [ "/bin/sh", "-ec" ]
+          args:
+            - |
+              if [ ! -d "$FS_MOUNT_POINT_VICTORIA" ]; then
+                mkdir -pv "$FS_MOUNT_POINT_VICTORIA"
+                chown --verbose -R 1000:1000 "$FS_MOUNT_POINT_VICTORIA"
+                echo -e "[ INFO ] Directory created!\nDONE\n"
+              else
+                echo "[ INFO ] directory $FS_MOUNT_POINT_VICTORIA already exists"
+              fi
+
+              if [ ! -d "$FS_MOUNT_POINT_GRAFANA" ]; then
+                mkdir -pv "$FS_MOUNT_POINT_GRAFANA"
+                chown --verbose -R 472:472 "$FS_MOUNT_POINT_GRAFANA"
+                echo -e "[ INFO ] Directory created!\nDONE\n"
+              else
+                echo "[ INFO ] directory $FS_MOUNT_POINT_GRAFANA already exists"
+              fi
+          volumeMounts:
+            - name: monitoring-stack-host-mnt
+              mountPath: {{ .Values.global.fsMountPoint }}
+      restartPolicy: Never
+      nodeSelector:
+        {{- toYaml .Values.jobs.node | nindent 8 }}
+      volumes:
+        - name: monitoring-stack-host-mnt
+          hostPath:
+            path: {{ .Values.global.fsMountPoint }}
+            type: Directory
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+  annotations:
+    "helm.sh/resource-policy": keep
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: victoriametrics-pv-0
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  capacity:
+    storage: 512Mi
+  volumeMode: Filesystem
+  claimRef:
+    name: data-victoriametrics-0
+    namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  accessModes: [ ReadWriteOnce ]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: "{{ .Values.global.fsMountPoint }}/victoria_data"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                {{- toYaml .Values.jobs.pvNodeNames | nindent 16 }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-pv-0
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  capacity:
+    storage: 256Mi
+  volumeMode: Filesystem
+  claimRef:
+    name: data-grafana-0
+    namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  accessModes: [ ReadWriteOnce ]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: "{{ .Values.global.fsMountPoint }}/grafana_data"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                {{- toYaml .Values.jobs.pvNodeNames | nindent 16 }}
+{{- end }}
+

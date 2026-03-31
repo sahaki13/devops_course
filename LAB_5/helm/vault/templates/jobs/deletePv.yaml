@@ -1,0 +1,47 @@
+{{- if .Values.jobs.deletePv.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-pv-{{ now | unixEpoch }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.deletePv.ttlSecondsAfterFinished | default 5 }}
+  backoffLimit: {{ .Values.jobs.backoffLimit | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: delete-pv
+          image: {{ .Values.jobs.image }}
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          env:
+            - name: FS_MOUNT_POINT
+              value: "{{ .Values.agent.fsMountPoint }}/vault_data"
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "Starting vault storage cleanup..."
+              if [ -d "$FS_MOUNT_POINT" ]; then
+                echo "Found $FS_MOUNT_POINT, removing..."
+                rm -Rfv "$FS_MOUNT_POINT"
+                echo "Cleanup completed."
+              else
+                echo "WARNING: $FS_MOUNT_POINT not found, nothing to do."
+              fi
+          volumeMounts:
+            - name: host-mnt
+              mountPath: {{ .Values.agent.fsMountPoint }}
+              readOnly: false
+      restartPolicy: Never
+      nodeSelector:
+        {{- toYaml .Values.jobs.node | nindent 8 }}
+      volumes:
+        - name: host-mnt
+          hostPath:
+            path: {{ .Values.agent.fsMountPoint }}
+            type: Directory
+{{- end }}
+

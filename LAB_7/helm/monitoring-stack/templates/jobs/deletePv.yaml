@@ -1,0 +1,57 @@
+{{- if .Values.jobs.deletePv.enabled | default false }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-pv-{{ now | unixEpoch }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.deletePv.ttlSecondsAfterFinished | default 5 }}
+  backoffLimit: {{ .Values.jobs.backoffLimit | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: delete-pv
+          image: {{ .Values.jobs.image }}
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          env:
+            - name: FS_MOUNT_POINT_VICTORIA
+              value: "{{ .Values.global.fsMountPoint }}/victoria_data"
+            - name: FS_MOUNT_POINT_GRAFANA
+              value: "{{ .Values.global.fsMountPoint }}/grafana_data"
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "Starting victoria storage cleanup..."
+              if [ -d "$FS_MOUNT_POINT_VICTORIA" ]; then
+                echo "Found $FS_MOUNT_POINT_VICTORIA, removing..."
+                rm -Rfv "$FS_MOUNT_POINT_VICTORIA"
+                echo -e "Cleanup completed.\n"
+              else
+                echo "WARNING: $FS_MOUNT_POINT_VICTORIA not found, nothing to do."
+              fi
+
+              echo "Starting grafana storage cleanup..."
+              if [ -d "$FS_MOUNT_POINT_GRAFANA" ]; then
+                echo "Found $FS_MOUNT_POINT_GRAFANA, removing..."
+                rm -Rfv "$FS_MOUNT_POINT_GRAFANA"
+                echo -e "Cleanup completed.\n"
+              else
+                echo "WARNING: $FS_MOUNT_POINT_GRAFANA not found, nothing to do."
+              fi
+          volumeMounts:
+            - name: monitoring-stack-host-mnt
+              mountPath: {{ .Values.global.fsMountPoint }}
+      restartPolicy: Never
+      nodeSelector:
+        {{- toYaml .Values.jobs.node | nindent 8 }}
+      volumes:
+        - name: monitoring-stack-host-mnt
+          hostPath:
+            path: {{ .Values.global.fsMountPoint }}
+            type: Directory
+{{- end }}
+

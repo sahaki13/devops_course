@@ -1,0 +1,22 @@
+{{- range $componentName := list "victoriametrics" "grafana" }}
+{{- $componentСonfig := index $.Values $componentName }}
+{{- if and $componentСonfig.enabled $componentСonfig.configMaps }}
+{{- range $cmName, $cmCfg := $componentСonfig.configMaps }}
+{{- if $cmCfg.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $componentName }}-{{ $cmName }}
+  namespace: {{ $.Values.global.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $componentName }}
+data:
+  {{ $cmCfg.fileName }}: |
+    {{- $.Files.Get $cmCfg.file | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+

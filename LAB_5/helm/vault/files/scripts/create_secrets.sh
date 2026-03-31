@@ -24,31 +24,54 @@ EOF
 }
 
 for env in $ENVIRONMENTS; do
-    echo -e "\n========== Environment: $env =========="
+  echo -e "\n========== Environment: $env =========="
+
+  for app_name in $APPLICATIONS; do
+    echo -e "\n--- Service: $app_name ---"
+
+    echo "--- Upsert policy: $env ---"
+    gen_policy "$env" "$app_name"
 
     echo "Check policy $env:"
-    vault policy read read-secret-$env
+    vault policy read read-secret-$env-$app_name
 
-    for app_name in $APPLICATIONS; do
-        echo -e "\n--- Service: $app_name ---"
+    # write secrets
+    secret_path="secrets/$env/$app_name/config"
+    if vault kv get "$secret_path" > /dev/null 2>&1; then
+      echo "Secret $secret_path already exists. Skipping write to prevent overwrite."
+    else
+      echo "Secret $secret_path not found. Creating new secrets..."
+      # enable kv engine
+      vault secrets enable -path=secrets/$env/$app_name kv-v2 || true
+      vault kv put "$secret_path" \
+        "$( echo ${env}_secret_0 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+        "$( echo ${env}_secret_1 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+        "$( echo ${env}_secret_2 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
+        "$( echo ${env}_secret_3 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )"
+      # check
+      echo "Check secret $env/$app_name:"
+      vault kv get secrets/$env/$app_name/config
+    fi
+  done
 
-        echo "--- Upsert policy: $env ---"
-        gen_policy "$env" "$app_name"
+  # global policy and secret
+  vault policy write read-secret-$env-global - <<EOF
+  path "secrets/$env/global/*" {
+    capabilities = [ "read" ]
+  }
+EOF
 
-        # enable kv engine
-        vault secrets enable -path=secrets/$env/$app_name kv-v2 || true
+  secret_path="secrets/$env/global/certs"
+  if vault kv get "$secret_path" > /dev/null 2>&1; then
+    echo "Secret $secret_path already exists. Skipping write to prevent overwrite."
+  else
+    echo "Secret $secret_path not found. Creating new secrets..."
+    vault secrets enable -path=secrets/$env/global kv-v2 || true
+    vault kv put secrets/$env/global/certs \
+    "tls.crt=$( xxd -l 8 -p /dev/random )" \
+    "tls.key=$( xxd -l 8 -p /dev/random )"
+  fi
 
-        # write secrets
-        vault kv put secrets/$env/$app_name/config \
-            "$( echo ${env}_secret_0 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
-            "$( echo ${env}_secret_1 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
-            "$( echo ${env}_secret_2 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )" \
-            "$( echo ${env}_secret_3 | awk '{print toupper($0)}' )=$( xxd -l 8 -p /dev/random )"
-
-        # check
-        echo "Check secret $env/$app_name:"
-        vault kv get secrets/$env/$app_name/config
-    done
-
-    echo -e "\n========== Environment $env: DONE =========="
+  echo -e "\n========== Environment $env: DONE =========="
 done
+

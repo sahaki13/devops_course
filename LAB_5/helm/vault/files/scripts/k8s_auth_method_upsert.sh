@@ -89,3 +89,4 @@ done
 #             audience="https://kubernetes.default.svc.${CLUSTER_DOMAIN}" \
 #             policies="${POLICIES}" \
 #             ttl=1m
+

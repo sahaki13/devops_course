@@ -40,6 +40,10 @@ services:
       FORGEJO__service__PASSWORD_COMPLEXITY: off
       FORGEJO__cron__update_checker__ENABLED: false
 
+      # webhook
+      FORGEJO__webhook__SKIP_TLS_VERIFY: true
+      FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
+
       # logs
       FORGEJO__log__ROOT_PATH: /data/gitea/log
 

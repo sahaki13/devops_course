@@ -15,3 +15,4 @@ for policy in $(vault policy list -format=json | grep -v -E 'root|default' | tr 
   vault policy read "$policy"
   echo -e "============================\n\n"
 done
+

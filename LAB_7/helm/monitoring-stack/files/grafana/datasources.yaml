@@ -1,0 +1,25 @@
+apiVersion: 1
+
+datasources:
+  - name: VictoriaMetrics
+    type: prometheus
+    uid: victoriametrics_ds
+    url: http://victoriametrics-0.victoriametrics-headless:8428
+    access: proxy
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+      prometheusType: "Prometheus"
+      prometheusVersion: "2.45.0"
+
+  # - name: prometheus
+  #   type: prometheus
+  #   uid: prometheus_datasource
+  #   url: http://prometheus-0.prometheus-headless:9090
+  #   jsonData:
+  #     timeInterval: 60s
+      # exemplarTraceIdDestinations:
+      #   - name: trace_id
+      #     datasourceUid: tempo
+      #     urlDisplayLabel: "Trace: $${__value.raw}"
+

@@ -1,0 +1,137 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    scheme: https
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      insecure_skip_verify: true
+    # metrics_path: /metrics # Explicitly specifying the path to metrics (/metrcics by default). Can be omitted
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+
+  - job_name: 'kube-state-metrics'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+        action: keep
+        regex: kubestatemetrics
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: '8080'
+
+  - job_name: 'node-exporter'
+    scrape_interval: 10s
+    kubernetes_sd_configs:
+      - role: pod
+    scheme: https
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      insecure_skip_verify: true
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+        action: keep
+        regex: nodeexporter
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: '9100'
+
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: [
+  #         "192.168.99.100:9105",
+  #         "192.168.99.101:9105",
+  #         "192.168.99.102:9105",
+  #       ]
+  #   metrics_path: /metrics
+
+  # meta-label k8s sd __meta_kubernetes_pod_label_<key_label>
+  # ex. __meta_kubernetes_pod_label_app, __meta_kubernetes_pod_label_name
+  # - job_name: 'cadvisor'
+  #   kubernetes_sd_configs:
+  #     - role: node
+  #   scheme: https
+  #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  #   tls_config:
+  #     insecure_skip_verify: true
+  #   relabel_configs:
+  #     # Порт kubelet/cAdvisor
+  #     - source_labels: [__address__]
+  #       action: replace
+  #       target_label: __address__
+  #       regex: ([^:]+)(?::\d+)?
+  #       replacement: ${1}:10250
+  #     # Добавляем лейблы из K8s в метрики
+  #     - action: labelmap
+  #       regex: __meta_kubernetes_node_label_(.+)
+  #   metric_relabel_configs:
+  #     # Оставляем только контейнерные метрики
+  #     - source_labels: [__name__]
+  #       action: keep
+  #       regex: 'container_(cpu_|memory_).*'
+
+  # - job_name: 'my-microservices'
+  #   kubernetes_sd_configs:
+  #     - role: endpoints
+  #   scheme: https
+  #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  #   tls_config:
+  #     insecure_skip_verify: true
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+  #       action: keep
+  #       regex: true
+
+  # - job_name: 'vault'
+  #   kubernetes_sd_configs:
+  #     - role: endpoints
+  #   scheme: https
+  #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  #   tls_config:
+  #     insecure_skip_verify: true
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_namespace]
+  #       action: keep
+  #       regex: vault  # Change to your namespace
+  #     - source_labels: [__meta_kubernetes_pod_name]
+  #       action: keep
+  #       regex: vault-0  # Change to your pod name
+
+  # - job_name: 'kubernetes-pods'
+  #   kubernetes_sd_configs:
+  #     - role: pod
+  #   relabel_configs:
+  #     # Example relabel to scrape only pods that have
+  #     # "example.io/should_be_scraped = true" annotation.
+  #     #  - source_labels: [__meta_kubernetes_pod_annotation_example_io_should_be_scraped]
+  #     #    action: keep
+  #     #    regex: true
+  #     #
+  #     # Example relabel to customize metric path based on pod
+  #     # "example.io/metric_path = <metric path>" annotation.
+  #     #  - source_labels: [__meta_kubernetes_pod_annotation_example_io_metric_path]
+  #     #    action: replace
+  #     #    target_label: __metrics_path__
+  #     #    regex: (.+)
+  #     #
+  #     # Example relabel to scrape only single, desired port for the pod
+  #     # based on pod "example.io/scrape_port = <port>" annotation.
+  #     #  - source_labels: [__address__, __meta_kubernetes_pod_annotation_example_io_scrape_port]
+  #     #    action: replace
+  #     #    regex: ([^:]+)(?::\d+)?;(\d+)
+  #     #    replacement: $1:$2
+  #     #    target_label: __address__
+  #     - action: labelmap
+  #       regex: __meta_kubernetes_pod_label_(.+)
+  #     - source_labels: [__meta_kubernetes_namespace]
+  #       action: replace
+  #       target_label: namespace
+  #     - source_labels: [__meta_kubernetes_pod_name]
+  #       action: replace
+  #       target_label: pod
+

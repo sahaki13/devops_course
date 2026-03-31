@@ -1,0 +1,125 @@
+{{- range $daemonName := list "cadvisor" "nodeexporter" "kubestatemetrics" }}
+{{- $cfg := index $.Values $daemonName }}
+{{- if and $cfg.enabled $cfg.isDaemonSet }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $daemonName }}
+  namespace: {{ $.Values.global.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $daemonName }}
+  {{- with $cfg.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "monitoring-stack.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $daemonName }}
+  template:
+    metadata:
+      labels:
+        {{- include "monitoring-stack.selectorLabels" $ | nindent 8 }}
+        # this spec generate SD label __meta_kubernetes_pod_label_app_kubernetes_io_component="<name>"
+        app.kubernetes.io/component: {{ $daemonName }}
+      {{- with $cfg.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: {{ $cfg.serviceAccount.automount | default false }}
+      {{- /* Инициализация списка для дедупликации томов */}}
+      {{- $seenVolumes := list }}
+      {{- with $cfg.serviceAccount.name }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      {{- if $cfg.hostNetwork }}
+      hostNetwork: true
+      {{- end }}
+      {{- if $cfg.hostPID }}
+      hostPID: true
+      {{- end }}
+      {{- with $cfg.securityContext.pod }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      containers:
+        {{- range $container := $cfg.containers }}
+        - name: {{ $container.name }}
+          image: "{{ $container.image.repository }}:{{ $container.image.tag }}"
+          imagePullPolicy: {{ $container.image.pullPolicy | default "IfNotPresent" }}
+          {{- if ne $container.name "kube-rbac-proxy" }}
+          # this spec generate SD label __meta_kubernetes_pod_container_port_number="<port>"
+          ports:
+            - name: http
+              containerPort: {{ $cfg.service.port | default 8080 }}
+              protocol: TCP
+          {{- end }}
+          {{- with $container.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $container.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $container.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $container.securityContext.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.storage }}
+          volumeMounts:
+            {{- range $vol := $cfg.storage }}
+            {{- if or (not $vol.container) (eq $vol.container $container.name) }}
+            {{- if $vol.mountPath }}
+            - name: {{ $vol.name }}
+              mountPath: {{ $vol.mountPath }}
+              {{- if $vol.readOnly }}
+              readOnly: true
+              {{- end }}
+              {{- if $vol.mountPropagation }}
+              mountPropagation: {{ $vol.mountPropagation }}
+              {{- end }}
+              {{- if $vol.subPath }}
+              subPath: {{ $vol.subPath }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- if $cfg.storage }}
+      volumes:
+        {{- range $vol := $cfg.storage }}
+        {{- $volKey := $vol.name }}
+        {{- if not (has $volKey $seenVolumes) }}
+        {{- $seenVolumes = append $seenVolumes $volKey }}
+        - name: {{ $vol.name }}
+          {{- if $vol.hostPath }}
+          hostPath:
+            path: {{ $vol.hostPath }}
+            {{- if $vol.hostPathType }}
+            type: {{ $vol.hostPathType }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $cfg.terminationGracePeriodSeconds | default 30 }}
+{{- end }}
+{{- end }}
+

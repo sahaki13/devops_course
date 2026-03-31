@@ -1,0 +1,55 @@
+{{- $components := list "victoriametrics" "grafana" "nodeexporter" "cadvisor" "kubestatemetrics" }}
+{{- range $name := $components }}
+{{- $componentСonfig := index $.Values $name }}
+{{- if and $componentСonfig.enabled $componentСonfig.service $componentСonfig.service.enabled }}
+{{- $svcCfg := $componentСonfig.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name | quote }}
+  {{- with $svcCfg.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $svcCfg.type | default "ClusterIP" }}
+  ports:
+    - port: {{ $svcCfg.port }}
+      targetPort: {{ $svcCfg.targetPort | default $svcCfg.port }}
+      protocol: {{ $svcCfg.protocol | default "TCP" }}
+      name: {{ $svcCfg.portName | default "http" }}
+      {{- if and (eq ($svcCfg.type | default "ClusterIP") "NodePort") $svcCfg.nodePort }}
+      nodePort: {{ $svcCfg.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "monitoring-stack.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name | quote }}
+{{- if or (eq $name "victoriametrics") (eq $name "grafana") }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-headless" $name }}
+  namespace: {{ $.Values.global.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name | quote }}
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ $svcCfg.port }}
+      targetPort: {{ $svcCfg.targetPort | default $svcCfg.port }}
+      protocol: TCP
+      name: {{ $svcCfg.portName | default "http" }}
+  selector:
+    {{- include "monitoring-stack.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+

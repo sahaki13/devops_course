@@ -1,0 +1,136 @@
+{{- $components := dict
+  "victoriametrics" (dict
+    "enabled" .Values.victoriametrics.enabled
+    "image" .Values.victoriametrics.image
+    "replicas" .Values.victoriametrics.replicas
+    "resources" .Values.victoriametrics.resources
+    "env" .Values.victoriametrics.env
+    "args" .Values.victoriametrics.args
+    "probes" .Values.victoriametrics.probes
+    "volumeClaimTemplates" .Values.victoriametrics.volumeClaimTemplates
+    "configMaps" .Values.victoriametrics.configMaps
+    "securityContext" .Values.victoriametrics.securityContext
+    "serviceAccountName" .Values.victoriametrics.serviceAccount.name
+    "nodeSelector" .Values.victoriametrics.nodeSelector
+    "tolerations" .Values.victoriametrics.tolerations
+    "port" .Values.victoriametrics.service.port
+  )
+  "grafana" (dict
+    "enabled" .Values.grafana.enabled
+    "image" .Values.grafana.image
+    "replicas" .Values.grafana.replicas
+    "resources" .Values.grafana.resources
+    "env" .Values.grafana.env
+    "args" .Values.grafana.args
+    "probes" .Values.grafana.probes
+    "volumeClaimTemplates" .Values.grafana.volumeClaimTemplates
+    "configMaps" .Values.grafana.configMaps
+    "securityContext" .Values.grafana.securityContext
+    "serviceAccountName" .Values.grafana.serviceAccount.name
+    "nodeSelector" .Values.grafana.nodeSelector
+    "tolerations" .Values.grafana.tolerations
+    "port" .Values.grafana.service.port
+  )
+}}
+
+{{- range $componentName, $component := $components }}
+{{- if $component.enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $componentName }}
+  namespace: {{ $.Values.global.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $componentName }}
+spec:
+  serviceName: "{{ $componentName }}-headless"
+  replicas: {{ $component.replicas }}
+  selector:
+    matchLabels:
+      {{- include "monitoring-stack.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $componentName }}
+  template:
+    metadata:
+      labels:
+        {{- include "monitoring-stack.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $componentName }}
+    spec:
+      {{- with $component.securityContext.pod }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/hostname: {{ $component.nodeSelector }}
+      {{- with $component.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $component.serviceAccountName }}
+      containers:
+        - name: {{ $componentName }}
+          image: "{{ $component.image.repository }}:{{ $component.image.tag | default $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
+          {{- with $component.env }}
+          env:
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- end }}
+          args:
+            {{- toYaml $component.args | nindent 12 }}
+          {{- if $component.probes.liveness.enabled | default false }}
+          livenessProbe:
+            httpGet:
+              path: {{ $component.probes.liveness.path | default "/healthz" }}
+              port: {{ $component.port }}
+            initialDelaySeconds: {{ $component.probes.liveness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $component.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ $component.probes.liveness.timeoutSeconds | default 1 }}
+            failureThreshold: {{ $component.probes.liveness.failureThreshold | default 3 }}
+            successThreshold: {{ $component.probes.liveness.successThreshold | default 1 }}
+          {{- end }}
+          {{- if $component.probes.readiness.enabled | default false }}
+          readinessProbe:
+            httpGet:
+              path: {{ $component.probes.readiness.path | default "/readyz" }}
+              port: {{ $component.port }}
+            initialDelaySeconds: {{ $component.probes.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $component.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ $component.probes.readiness.timeoutSeconds | default 2 }}
+            failureThreshold: {{ $component.probes.readiness.failureThreshold | default 3 }}
+            successThreshold: {{ $component.probes.readiness.successThreshold | default 1 }}
+          {{- end }}
+          {{- with $component.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $component.securityContext.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/{{ $componentName }}
+            {{- range $cmKey, $cmCfg := $component.configMaps }}
+            {{- if $cmCfg.enabled }}
+            - name: {{ $cmKey }}-cm
+              mountPath: {{ $cmCfg.mountPath }}
+              subPath: {{ $cmCfg.fileName }}
+            {{- end }}
+            {{- end }}
+      volumes:
+        {{- range $cmKey, $cmCfg := $component.configMaps }}
+        {{- if $cmCfg.enabled }}
+        - name: {{ $cmKey }}-cm
+          configMap:
+            name: {{ $componentName }}-{{ $cmKey }}
+        {{- end }}
+        {{- end }}
+  volumeClaimTemplates:
+    {{- toYaml $component.volumeClaimTemplates | nindent 4 }}
+{{- end }}
+{{- end }}
+

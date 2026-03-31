@@ -27,3 +27,4 @@ if [ "$vault_sealed_status" == "true" ]; then
 else
   echo "Vault already unsealed."
 fi
+

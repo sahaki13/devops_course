@@ -1,0 +1,543 @@
+# ----- Global settings (common for all components) -----
+global:
+  namespace: monitoring-stack
+  fsMountPoint: /mnt
+
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: monitoring-stack
+
+  imagePullSecrets: []
+
+# ----- Jobs -----
+jobs:
+  image: docker.io/library/busybox:1.37.0-musl
+  backoffLimit: 1
+  deletePv:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  createPv:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  node:
+    kubernetes.io/hostname: worker-0
+  pvNodeNames:
+    - worker-0
+
+# ----- Ingress -----
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: victoria.test.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            component: victoriametrics
+    - host: grafana.test.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            component: grafana
+
+# ----- VictoriaMetrics single-node -----
+victoriametrics:
+  enabled: true
+  nodeSelector: worker-0
+
+  image:
+    repository: docker.io/victoriametrics/victoria-metrics
+    tag: v1.138.0
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+  env: {}
+
+  args:
+    - "-storageDataPath=/var/lib/victoriametrics"
+    - "-promscrape.config=/etc/prometheus/vmagent.yaml"
+    - "-retentionPeriod=1"
+    - "-search.maxQueryDuration=30s"
+    - "-httpListenAddr=:8428"
+
+  probes:
+    liveness:
+      enabled: false
+      path: /
+      periodSeconds: 8
+    readiness:
+      enabled: false
+      path: /
+      periodSeconds: 30
+
+  serviceAccount:
+    create: true
+    automount: false
+    name: victoriametrics
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8428
+
+  configMaps:
+    vmagent:
+      enabled: true
+      fileName: vmagent.yaml
+      mountPath: /etc/prometheus/vmagent.yaml
+      file: "files/victoriametrics/vmagent.yaml"
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: local-storage
+        accessModes: [ ReadWriteOnce ]
+        resources:
+          requests:
+            storage: 384Mi
+
+  securityContext:
+    pod:
+      runAsUser:  1000
+      runAsGroup: 1000
+      fsGroup:    1000
+      sysctls:    []
+    container:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ ALL ]
+
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+
+# ----- Grafana -----
+grafana:
+  enabled: true
+  nodeSelector: worker-0
+
+  image:
+    repository: docker.io/grafana/grafana
+    tag: 11.6.14
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 156Mi
+
+  env:
+    TZ: Europe/Moscow
+    GF_SERVER_ROOT_URL: http://grafana.test.local
+    GF_USERS_VIEWERS_CAN_EDIT: true
+
+  probes:
+    liveness:
+      enabled: false
+      path: /
+      periodSeconds: 8
+    readiness:
+      enabled: false
+      path: /robots.txt
+      periodSeconds: 30
+
+  serviceAccount:
+    create: true
+    automount: true
+    name: grafana
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 3000
+
+  configMaps:
+    alerts-provisioning:
+      enabled: true
+      fileName: alerts.yml
+      mountPath: /etc/grafana/provisioning/alerting/alerts.yml
+      file: files/grafana/alerts.yaml
+    dashboards-provisioning:
+      enabled: true
+      fileName: dashboards.yml
+      mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+      file: files/grafana/dashboards.yaml
+    datasources-provisioning:
+      enabled: true
+      fileName: datasources.yml
+      mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+      file: files/grafana/datasources.yaml
+    dashboards-json:
+      enabled: true
+      fileName: echo-server-dashboard.json
+      mountPath: /var/lib/grafana/dashboards/echo-server-dashboard.json
+      file: files/grafana/echo-server-dashboard.json
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: local-storage
+        accessModes: [ ReadWriteOnce ]
+        resources:
+          requests:
+            storage: 128Mi
+
+  securityContext:
+    pod:
+      # runAsUser: 472
+      # runAsGroup: 472
+      fsGroup: 472
+      supplementalGroups: [ 0 ]
+    container:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ ALL ]
+
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+
+# ----- Node Exporter -----
+nodeexporter:
+  enabled: true
+  isDaemonSet: true
+
+  hostNetwork: true
+  hostPID: true
+
+  priorityClassName: system-cluster-critical
+
+  serviceAccount:
+    create: true
+    automount: true
+    name: node-exporter
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 9100
+
+  securityContext:
+    pod:
+      runAsUser: 65534
+      runAsGroup: 65534
+      # fsGroup:    1000
+      # sysctls: []
+
+  containers:
+    - name: node-exporter
+      image:
+        repository: quay.io/prometheus/node-exporter
+        tag: v1.9.1
+        pullPolicy: IfNotPresent
+      env: {}
+      args:
+        - "--web.listen-address=127.0.0.1:9100"
+        - "--path.sysfs=/host/sys"
+        - "--path.rootfs=/host/root"
+        - "--path.udev.data=/host/root/run/udev/data"
+        - "--no-collector.wifi"
+        - "--no-collector.hwmon"
+        - "--no-collector.btrfs"
+        - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/k3s/containerd/.+|var/lib/docker/.+|var/lib/kubelet/pods/.+)($|/)"
+        - "--collector.netclass.ignored-devices=^(veth.*|[a-f0-9]{15})$"
+        - "--collector.netdev.device-exclude=^(veth.*|[a-f0-9]{15})$"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 24Mi
+        limits:
+          cpu: 150m
+          memory: 72Mi
+      probes:
+        liveness:
+          enabled: false
+          path: /
+          periodSeconds: 8
+        readiness:
+          enabled: false
+          path: /
+          periodSeconds: 30
+      securityContext:
+        container:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ ALL ]
+            add: [ SYS_TIME ]
+    - name: kube-rbac-proxy
+      image:
+        repository: quay.io/brancz/kube-rbac-proxy
+        tag: v0.19.0
+        pullPolicy: IfNotPresent
+      env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      args:
+        - "--secure-listen-address=[$(IP)]:9100"
+        - "--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305"
+        - "--upstream=http://127.0.0.1:9100/"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 12Mi
+        limits:
+          cpu: 50m
+          memory: 48Mi
+      probes:
+        liveness:
+          enabled: false
+          path: /
+          periodSeconds: 8
+        readiness:
+          enabled: false
+          path: /
+          periodSeconds: 30
+      securityContext:
+        container:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ ALL ]
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+          seccompProfile:
+            type: RuntimeDefault
+
+  storage:
+    - name: sys
+      hostPath: /sys
+      mountPath: /host/sys
+      readOnly: true
+      mountPropagation: HostToContainer
+
+    - name: root
+      hostPath: /
+      mountPath: /host/root
+      readOnly: true
+      mountPropagation: HostToContainer
+
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+  podAnnotations: {}
+  podLabels: {}
+
+# ----- cAdvisor -----
+cadvisor:
+  enabled: false
+  isDaemonSet: true
+
+  hostNetwork: false
+  hostPID: false
+
+  serviceAccount:
+    create: true
+    automount: true
+    name: cadvisor
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+
+  annotations:
+      seccomp.security.alpha.kubernetes.io/pod: 'docker/default'
+
+  securityContext:
+    pod:
+      runAsUser: 0
+      runAsGroup: 0
+      fsGroup: 0
+
+  containers:
+    - name: cadvisor
+      image:
+        repository: gcr.io/cadvisor/cadvisor
+        tag: v0.45.0
+        pullPolicy: IfNotPresent
+      env: {}
+      args:
+        - "--housekeeping_interval=10s"
+        - "--max_housekeeping_interval=15s"
+        - "--docker_root=/var/lib/containers/storage"
+        - "--application_metrics_count_limit=0"
+        - "--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,sched,tcp,udp,disk,accelerator,referenced_memory,resctrl"
+        - "--store_container_labels=false"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 12Mi
+        limits:
+          cpu: 150m
+          memory: 128Mi
+      probes:
+        liveness:
+          enabled: false
+          path: /
+          periodSeconds: 8
+        readiness:
+          enabled: false
+          path: /
+          periodSeconds: 30
+      securityContext:
+        container:
+          privileged: true
+          runAsUser: 0
+          runAsNonRoot: false
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ ALL ]
+            add: [ SYS_ADMIN, SYS_TIME ]
+
+  storage:
+    - name: rootfs
+      hostPath: /
+      mountPath: /rootfs
+      readOnly: true
+      mountPropagation: HostToContainer
+
+    - name: var-run
+      hostPath: /var/run
+      mountPath: /var/run
+      readOnly: true
+
+    - name: sys
+      hostPath: /sys
+      mountPath: /sys
+      readOnly: true
+
+    - name: crio
+      hostPath: /var/lib/crio
+      mountPath: /var/lib/crio
+      readOnly: true
+      hostPathType: DirectoryOrCreate
+
+    - name: var-lib-containers
+      hostPath: /var/lib/containers
+      mountPath: /var/lib/containers
+      readOnly: true
+      mountPropagation: HostToContainer
+
+    - name: disk
+      hostPath: /dev/disk
+      mountPath: /dev/disk
+      readOnly: true
+
+    - name: var-log
+      hostPath: /var/log
+      mountPath: /var/log
+      readOnly: true
+
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+  podAnnotations: {}
+  podLabels: {}
+
+# ----- kube-state-metrics -----
+kubestatemetrics:
+  enabled: true
+  isDaemonSet: false
+
+  hostNetwork: false
+  hostPID: false
+
+  priorityClassName: system-cluster-critical
+
+  serviceAccount:
+    create: true
+    automount: true
+    name: kube-state-metrics
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+
+  securityContext:
+    pod:
+      runAsUser: 65534
+      runAsGroup: 65534
+      # fsGroup:    1000
+      # sysctls: []
+
+  containers:
+    - name: kube-state-metrics
+      image:
+        repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+        tag: v2.15.0
+        pullPolicy: IfNotPresent
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+      args:
+        - "--resources=pods,persistentvolumes,persistentvolumeclaims,namespaces,nodes,secrets,configmaps,services,deployments,statefulsets,daemonsets,replicasets"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 12Mi
+        limits:
+          cpu: 50m
+          memory: 48Mi
+      probes:
+        liveness:
+          enabled: false
+          path: /livez
+          initialDelaySeconds: 5
+          periodSeconds: 8
+        readiness:
+          enabled: false
+          path: /readyz
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      securityContext:
+        container:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: [ ALL ]
+
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/hostname: worker-1
+
+  podAnnotations: {}
+  podLabels: {}
+

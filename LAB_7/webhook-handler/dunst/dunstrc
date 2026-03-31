@@ -1,0 +1,7 @@
+[global]
+  timeout = 10
+  force_xinerama = true
+  fullscreen = show # top push
+  follow = mouse
+  layer = top
+

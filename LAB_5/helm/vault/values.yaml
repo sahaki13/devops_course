@@ -1,5 +1,5 @@
 global:
-  namespace: ""
+  namespace: "vault"
 
 addr: &vaultStsAddr "http://vault-svc.vault.svc:8200"
 
@@ -22,6 +22,20 @@ serviceAccounts:
     namespace: prod
     keepResource: false
 
+jobs:
+  image: docker.io/library/busybox:1.37.0-musl
+  backoffLimit: 1
+  deletePv:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  createPv:
+    enabled: false
+    ttlSecondsAfterFinished: 10
+  node:
+    kubernetes.io/hostname: worker-0
+  pvNodeNames:
+    - worker-0
+
 # --- ClusterRoleBinding ---
 clusterRoleBinding:
   create: true
@@ -30,6 +44,7 @@ clusterRoleBinding:
 
 # --- Agent ---
 agent:
+  enabled: true
   name: vault
   replicas: 1
   podManagementPolicy: Parallel
@@ -57,17 +72,21 @@ agent:
       # - worker-2
   resources:
     requests:
-      cpu: 512m
-      memory: 128Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: 512m
-      memory: 128Mi
+      cpu: 500m
+      memory: 256Mi
   fsMountPoint: /mnt
   volumeClaimTemplates:
-    data:
-      storageClassName: local-storage
-      accessModes: [ReadWriteOnce]
-      size: 256Mi
+    - metadata:
+        name: data
+      spec:
+        storageClassName: local-storage
+        accessModes: [ ReadWriteOnce ]
+        resources:
+          requests:
+            storage: 128Mi
   env:
     TZ: Europe/Moscow
     SKIP_CHOWN: true
@@ -139,20 +158,6 @@ configMap:
     name: vault-cm
     namespace: vault
 
-jobs:
-  image: docker.io/library/busybox:1.37.0-musl
-  backoffLimit: 1
-  removeVaultStorage:
-    enabled: false
-    ttlSecondsAfterFinished: 10
-  setupVault:
-    enabled: false
-    ttlSecondsAfterFinished: 10
-  node:
-    kubernetes.io/hostname: worker-0
-  pvNodeNames:
-    - worker-0
-
 # --- Test Pod ---
 testPod:
   enabled: false
@@ -189,8 +194,8 @@ vso:
 
   resources:
     requests:
-      cpu: 100m
-      memory: 64Mi
+      cpu: 50m
+      memory: 32Mi
     limits:
       cpu: 100m
       memory: 64Mi
@@ -198,7 +203,6 @@ vso:
   image:
     repository: docker.io/hashicorp/vault-secrets-operator
     tag: 1.3.0
-    # digest:
     pullPolicy: IfNotPresent
 
   vaultAddr: *vaultStsAddr
@@ -214,7 +218,6 @@ injector:
   image:
     repository: docker.io/hashicorp/vault-k8s
     tag: 1.7.3
-    # digest: 9dc040670fc917d99ef0c3341082d8700c8c9b67cc98a3867c4b93732b795d0f
     pullPolicy: IfNotPresent
 
   affinity:
@@ -238,3 +241,4 @@ injector:
     keyName: <tls.key_helm_render>
     certName: <tls.crt_helm_render>
     caBundle: <ca.crt_helm_render>
+

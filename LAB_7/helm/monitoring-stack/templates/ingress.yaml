@@ -1,0 +1,61 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullName := include "monitoring-stack.fullname" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "monitoring-stack.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    {{- $enabledPathsCount := 0 }}
+    {{- range .paths }}
+      {{- $cCfg := index $.Values .backend.component }}
+      {{- if and $cCfg $cCfg.enabled $cCfg.service $cCfg.service.enabled }}
+        {{- $enabledPathsCount = add1 $enabledPathsCount }}
+      {{- end }}
+    {{- end }}
+
+    {{- if gt $enabledPathsCount 0 }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          {{- $componentName := .backend.component }}
+          {{- $componentСonfig := index $.Values $componentName }}
+          {{- if and $componentСonfig $componentСonfig.enabled $componentСonfig.service $componentСonfig.service.enabled }}
+          - path: {{ .path }}
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ $componentName }}
+                port:
+                  number: {{ $componentСonfig.service.port }}
+          {{- end }}
+          {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}
+
