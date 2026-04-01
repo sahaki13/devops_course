@@ -5,3 +5,7 @@ runner_cfg
 **/build
 jenkins/*_data
 
+registry_data
+forgejo_data
+jenkins_data
+

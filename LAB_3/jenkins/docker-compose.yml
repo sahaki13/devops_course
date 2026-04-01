@@ -20,9 +20,9 @@ services:
       # server settings
       FORGEJO__server__OFFLINE_MODE: true
       FORGEJO__server__DISABLE_GRAVATAR: true
-      FORGEJO__server__DOMAIN: 192.168.99.100
-      FORGEJO__server__SSH_DOMAIN: 192.168.99.100
-      FORGEJO__server__ROOT_URL: http://192.168.99.100:81
+      FORGEJO__server__DOMAIN: ${FORGEJO_IP_ADDR}
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_IP_ADDR}
+      FORGEJO__server__ROOT_URL: http://${FORGEJO_IP_ADDR}:81
       FORGEJO__server__HTTP_PORT: 3000
       FORGEJO__server__SSH_PORT: 22
 
@@ -53,9 +53,9 @@ services:
       FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL}
     restart: always
     volumes:
-      - ./forgejo_data:/data
-      - ./scripts/forgejo/create_admin_user.sh:/usr/local/bin/create_admin_user.sh:ro
-      - ./scripts/forgejo/generate_token.sh:/usr/local/bin/generate_token.sh:ro
+      - ${PWD}/forgejo_data:/data
+      - ${PWD}/scripts/forgejo/create_admin_user.sh:/usr/local/bin/create_admin_user.sh:ro
+      - ${PWD}/scripts/forgejo/generate_token.sh:/usr/local/bin/generate_token.sh:ro
     ports:
       - "81:3000"
       - "2222:22"
@@ -100,31 +100,17 @@ services:
     command:
       - |
         # install plugins first
-        if [ -f /usr/share/jenkins/ref/plugins.txt ]; then
-          echo "Installing plugins..."
-            CMD_TIMEOUT="2m"
-            timeout "$$CMD_TIMEOUT" jenkins-plugin-cli --verbose --plugin-file /usr/share/jenkins/ref/plugins.txt
-            EXIT_CODE=$$?
-            if [ $$EXIT_CODE -eq 124 ]; then
-              printf "%s\n\n" ">>> Plugin installation timed out after $$CMD_TIMEOUT!"
-              exit 1
-            elif [ $$EXIT_CODE -eq 0 ]; then
-              printf "%s\n\n" ">>> Plugin installation OK!"
-              # jenkins-plugin-cli --list
-            else
-              printf "%s\n\n" ">>> Plugin installation failed with exit code: $$EXIT_CODE"
-              exit 1
-            fi
-        fi
+        /usr/local/bin/bootstrap_plugins.sh
 
         # after run jenkins
         echo "Starting Jenkins..."
         /usr/local/bin/jenkins.sh
     volumes:
-      - ./jenkins_data/:/var/jenkins_home
-      - ./cfg/jenkins_cfg.yaml:/var/jenkins_home/jenkins_cfg.yaml
+      - ${PWD}/jenkins_data/:/var/jenkins_home
+      - ${PWD}/cfg/jenkins_cfg.yaml:/var/jenkins_home/jenkins_cfg.yaml:ro
       # /usr/share/jenkins/ref/plugins
-      - ./cfg/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
+      - ${PWD}/scripts/jenkins/bootstrap_plugins.sh:/usr/local/bin/bootstrap_plugins.sh:ro
+      - ${PWD}/cfg/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
       - /usr/bin/docker:/usr/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
@@ -161,8 +147,9 @@ services:
       OTEL_LOGS_EXPORTER: none
       REGISTRY_LOG_LEVEL: warn
     volumes:
+      # - ${PWD}/registry_data:/var/lib/registry
       - /data/registry:/var/lib/registry
-      - ./.registry_auth:/auth/htpasswd
+      - ${PWD}/.registry_auth:/auth/htpasswd:ro
     ports:
       - "5050:5000"
     logging:

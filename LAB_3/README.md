@@ -135,15 +135,15 @@ http://192.168.99.100/admin/application_settings/ci_cd
 
 ## 3) Создать и запустить runner
 
-   * Перейти http://192.168.99.100:80/-/user_settings/personal_access_tokens
-   * Нажать на `Add new token`
-   * Указать имя, время жизни, права на `api`, `create_runner`
-   * Нажать `Create personal access token`
-   * Скопировать токен и подставить его в переменную `PERSONAL_ACCESS_TOKEN` в файле `.env`
-   * Убедиться, что в `docker-compose.yaml` `IS_REGISTER_RUNNER: true` и запустить `docker compose up runner`
-   * После регистрации, остановить контейнер нажатием `ctrl c`
-   * Убедиться, что в docker-compose.yaml `IS_REGISTER_RUNNER: false` и запустить в фоне `docker compose up -d runner`
-   * Проверить что runner появился в списке http://192.168.99.100:80/admin/runners
+* Перейти http://192.168.99.100:80/-/user_settings/personal_access_tokens
+* Нажать на `Add new token`
+* Указать имя, время жизни, права на `api`, `create_runner`
+* Нажать `Create personal access token`
+* Скопировать токен и подставить его в переменную `PERSONAL_ACCESS_TOKEN` в файле `.env`
+* Убедиться, что в `docker-compose.yaml` `IS_REGISTER_RUNNER: true` и запустить `docker compose up runner`
+* После регистрации, остановить контейнер нажатием `ctrl c`
+* Убедиться, что в docker-compose.yaml `IS_REGISTER_RUNNER: false` и запустить в фоне `docker compose up -d runner`
+* Проверить что runner появился в списке http://192.168.99.100:80/admin/runners
 
 ## 4) Написать `.gitlab-ci.yml` для своего приложения
 Манифест должен включать следующие этапы:
@@ -160,7 +160,7 @@ http://192.168.99.100/admin/application_settings/ci_cd
 
 # Альтернативный вариант (Forgejo, docker regitry/Nexus, Jenkins)
 
-В файлe `.env` указаны логины/пароли по умолчанию, которые используются для этого стека инструментов.<br> Их можно не менять.
+### В файлe `.env` указаны логины/пароли по умолчанию, которые используются для всего стека инструментов.<br> Их можно не менять.<br> Если используете другую подсеть, то поменять FORGEJO_IP_ADDR
 
 ## 1) Развернуть Forgejo
 
@@ -182,7 +182,8 @@ $ docker compose up -d forgejo
 $ docker exec -u 1000:1000 forgejo create_admin_user.sh
 ```
 
-Затем выполнить вход и добавить ssh ключ, после запушить свои репозитории с исходным кодом в Forgejo.
+Затем выполнить вход и добавить ssh ключ.<br>
+После создать репозиторий и запушить исходный код сервиса в Forgejo.
 
 ## 2) Развернуть Registry
 
@@ -209,10 +210,10 @@ $ docker compose up -d jenkins
 Если инициализация прошла успешно, Jenkins будет доступен по адресу:<br>
 [http://192.168.99.100:82/](http://192.168.99.100:82/)
 
-## 4) Написать манифест и выполнить сборку своего сервиса
+## 4) Написать сборочный манифест и выполнить сборку своего сервиса
 
 В Jenkins используется `scripted` и `DSL` подходы или их микс.<br>
-В директории есть сборочный файл `build.groovy`, можете взять его за основу, чтобы создать CI для своего сервиса.<br>
+В директории есть сборочный файл `build.groovy`, можете взять его за основу, чтобы создать CI манифест для своего сервиса.<br>
 Запуск джоб мануальный, сборки по триггерам можно не настраивать.
 
 После авторизации перейти в:<br>

@@ -91,7 +91,7 @@ $ k exec -it -n vault vault-0 -- /bin/sh
 $ /vault/scripts/create_users.sh
 ```
 
-Создать секреты (будет сгенерированы случайные секреты):
+Создать секреты (будут сгенерированы случайные секреты):
 ```
 $ /vault/scripts/create_secrets.sh
 ```

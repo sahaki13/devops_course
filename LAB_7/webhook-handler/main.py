@@ -1,5 +1,5 @@
 import os
-import json  # Добавили для pretty print
+import json
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)

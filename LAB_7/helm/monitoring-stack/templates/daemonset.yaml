@@ -1,4 +1,4 @@
-{{- range $daemonName := list "cadvisor" "nodeexporter" "kubestatemetrics" }}
+{{- range $daemonName := list "cadvisor" "nodeexporter" }}
 {{- $cfg := index $.Values $daemonName }}
 {{- if and $cfg.enabled $cfg.isDaemonSet }}
 ---
