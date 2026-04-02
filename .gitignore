@@ -11,3 +11,13 @@ LAB_*/**
 !LAB_7/**
 !LAB_8/**
 
+# Files cá nhân - ghi chép
+*.txt
+kpo2025.txt
+SSH*.txt
+Tong_hop*.txt
+LAB_4/SSH Lab 4.txt
+
+# Thư mục cá nhân (nếu sau này có)
+personal/
+notes/
